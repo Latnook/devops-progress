@@ -1,0 +1,48 @@
+services:
+  time-service:
+    build: ./time-service
+    container_name: time-service
+    ports:
+      - "5001:5001"
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  system-info-service:
+    build: ./system-info-service
+    container_name: system-info-service
+    ports:
+      - "5002:5002"
+    networks:
+      - microservices-network
+    environment:
+      - HOST_HOSTNAME=${HOSTNAME}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  dashboard-service:
+    build: ./dashboard-service
+    container_name: dashboard-service
+    ports:
+      - "5000:5000"
+    networks:
+      - microservices-network
+    depends_on:
+      - time-service
+      - system-info-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  microservices-network:
+    driver: bridge
