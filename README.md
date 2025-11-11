@@ -1,6 +1,6 @@
 # DevOps Learning Journey
 
-Welcome to my DevOps learning repository! On November 10th, 2025, I started my journey to learn DevOps, and this repository will document my progress and showcase the projects I build along the way.
+Welcome to my DevOps learning repository! On November 11th, 2025, I started my journey to learn DevOps, and this repository will document my progress and showcase the projects I build along the way.
 
 ## About This Repository
 
@@ -12,12 +12,20 @@ This is a hands-on learning repository where I'll be practicing and implementing
 **Status:** ✅ Completed
 **Location:** [`1-microservices_test/`](1-microservices_test/)
 
-A demonstration of microservices architecture featuring three services communicating via REST APIs:
+A demonstration of microservices architecture featuring four services communicating via REST APIs:
 - **Time Service** - Returns current timestamp
-- **System Info Service** - Returns hostname and platform information
-- **Dashboard Service** - Aggregates data from both services
+- **System Info Service** - Returns detailed system information (OS, CPU, memory, Python version)
+- **Weather Service** - Fetches real-time weather data for Haifa, Israel
+- **Dashboard Service** - Aggregates data from all services with a web interface
 
-**Technologies:** Docker, Docker Compose, Python Flask, REST APIs
+**Technologies:** Docker, Docker Compose, Python Flask, REST APIs, External API Integration
+
+**Features:**
+- Service-to-service communication
+- Detailed system metrics (CPU cores, memory usage, architecture)
+- Real-time weather integration using wttr.in API
+- Health checks for all services
+- Docker networking and container orchestration
 
 [View Project →](1-microservices_test/)
 
@@ -47,7 +55,7 @@ devops-progress/
 
 ## Progress Tracking
 
-**Started:** November 10, 2025
+**Started:** November 11, 2025
 **Projects Completed:** 1
 **Current Focus:** Microservices Architecture
 

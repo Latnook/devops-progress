@@ -5,6 +5,7 @@ app = Flask(__name__)
 
 TIME_SERVICE_URL = 'http://time-service:5001/api/time'
 SYSINFO_SERVICE_URL = 'http://system-info-service:5002/api/sysinfo'
+WEATHER_SERVICE_URL = 'http://weather-service:5003/api/weather'
 
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
@@ -82,8 +83,27 @@ HTML_TEMPLATE = '''
             <div class="service-title">💻 System Info Service</div>
             <div class="data-item"><span class="label">Host Machine:</span> {{ sysinfo_data.hostname }}</div>
             <div class="data-item"><span class="label">Container:</span> {{ sysinfo_data.container_hostname }}</div>
-            <div class="data-item"><span class="label">Platform:</span> {{ sysinfo_data.platform }}</div>
+            <div class="data-item"><span class="label">Platform:</span> {{ sysinfo_data.platform }} {{ sysinfo_data.platform_release }}</div>
+            <div class="data-item"><span class="label">Architecture:</span> {{ sysinfo_data.architecture }}</div>
+            <div class="data-item"><span class="label">Python Version:</span> {{ sysinfo_data.python_version }}</div>
+            <div class="data-item"><span class="label">CPU Cores:</span> {{ sysinfo_data.cpu_count }} ({{ sysinfo_data.cpu_count_physical }} physical)</div>
+            <div class="data-item"><span class="label">Memory:</span> {{ sysinfo_data.memory_available_gb }} GB available / {{ sysinfo_data.memory_total_gb }} GB total ({{ sysinfo_data.memory_percent }}% used)</div>
             <div class="data-item"><span class="label">Service:</span> {{ sysinfo_data.service }}</div>
+        </div>
+
+        <div class="service-box">
+            <div class="service-title">🌤️ Weather Service</div>
+            {% if weather_data.get('error') %}
+                <div class="data-item" style="color: #d32f2f;"><span class="label">Status:</span> {{ weather_data.message }}</div>
+            {% else %}
+                <div class="data-item"><span class="label">Location:</span> {{ weather_data.location.city }}, {{ weather_data.location.country }}</div>
+                <div class="data-item"><span class="label">Coordinates:</span> {{ weather_data.location.latitude }}, {{ weather_data.location.longitude }}</div>
+                <div class="data-item"><span class="label">Condition:</span> {{ weather_data.weather.condition }}</div>
+                <div class="data-item"><span class="label">Temperature:</span> {{ weather_data.weather.temperature_c }}°C ({{ weather_data.weather.temperature_f }}°F)</div>
+                <div class="data-item"><span class="label">Feels Like:</span> {{ weather_data.weather.feels_like_c }}°C</div>
+                <div class="data-item"><span class="label">Humidity:</span> {{ weather_data.weather.humidity }}%</div>
+                <div class="data-item"><span class="label">Wind Speed:</span> {{ weather_data.weather.wind_speed_kmph }} km/h</div>
+            {% endif %}
         </div>
 
         <button class="refresh-btn" onclick="location.reload()">Refresh Data</button>
@@ -108,19 +128,28 @@ def dashboard():
     except Exception as e:
         sysinfo_data = {'service': 'system-info-service', 'hostname': f'Error: {str(e)}', 'container_hostname': 'N/A', 'platform': 'N/A'}
 
-    return render_template_string(HTML_TEMPLATE, time_data=time_data, sysinfo_data=sysinfo_data)
+    try:
+        # Call weather service
+        weather_response = requests.get(WEATHER_SERVICE_URL, timeout=10)
+        weather_data = weather_response.json()
+    except Exception as e:
+        weather_data = {'service': 'weather-service', 'error': str(e), 'message': 'Could not fetch weather data'}
+
+    return render_template_string(HTML_TEMPLATE, time_data=time_data, sysinfo_data=sysinfo_data, weather_data=weather_data)
 
 @app.route('/api/aggregate', methods=['GET'])
 def aggregate():
     try:
-        # Call both services
+        # Call all services
         time_response = requests.get(TIME_SERVICE_URL, timeout=5)
         sysinfo_response = requests.get(SYSINFO_SERVICE_URL, timeout=5)
+        weather_response = requests.get(WEATHER_SERVICE_URL, timeout=10)
 
         return jsonify({
             'dashboard': 'aggregator-service',
             'time_service': time_response.json(),
-            'sysinfo_service': sysinfo_response.json()
+            'sysinfo_service': sysinfo_response.json(),
+            'weather_service': weather_response.json()
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500

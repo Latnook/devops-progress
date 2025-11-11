@@ -27,6 +27,19 @@ services:
       timeout: 10s
       retries: 3
 
+  weather-service:
+    build: ./weather-service
+    container_name: weather-service
+    ports:
+      - "5003:5003"
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   dashboard-service:
     build: ./dashboard-service
     container_name: dashboard-service
@@ -37,6 +50,7 @@ services:
     depends_on:
       - time-service
       - system-info-service
+      - weather-service
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s

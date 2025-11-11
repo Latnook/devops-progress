@@ -1,10 +1,10 @@
 # Microservices Demo Project
 
-A simple demonstration of microservices architecture using Docker, Docker Compose, and Python Flask.
+A demonstration of microservices architecture using Docker, Docker Compose, Python Flask, and external API integration.
 
 ## Architecture
 
-This project demonstrates a microservices architecture with three independent services:
+This project demonstrates a microservices architecture with four independent services:
 
 ```
 ┌─────────────────────┐
@@ -12,13 +12,14 @@ This project demonstrates a microservices architecture with three independent se
 │   (Aggregator)      │
 └──────────┬──────────┘
            │
-           ├─────────────────┐
-           │                 │
-           ▼                 ▼
-  ┌─────────────┐   ┌──────────────────┐
-  │Time Service │   │System Info Service│
-  │  (Port 5001)│   │    (Port 5002)   │
-  └─────────────┘   └──────────────────┘
+           ├─────────────────┬─────────────────┐
+           │                 │                 │
+           ▼                 ▼                 ▼
+  ┌─────────────┐   ┌──────────────┐   ┌──────────────┐
+  │Time Service │   │System Info   │   │Weather Service│
+  │ (Port 5001) │   │Service       │   │  (Port 5003) │
+  │             │   │(Port 5002)   │   │              │
+  └─────────────┘   └──────────────┘   └──────────────┘
 ```
 
 ### Services:
@@ -29,22 +30,36 @@ This project demonstrates a microservices architecture with three independent se
    - REST API endpoint: `/api/time`
 
 2. **System Info Service** (port 5002)
-   - Returns hostname and platform information
+   - Returns detailed system information:
+     - OS version and kernel release
+     - CPU architecture and core count
+     - Memory statistics (total, available, usage %)
+     - Python version
    - Independent microservice
    - REST API endpoint: `/api/sysinfo`
 
-3. **Dashboard Service** (port 5000)
-   - Aggregates data from both services
+3. **Weather Service** (port 5003)
+   - Fetches real-time weather data for Haifa, Israel
+   - Integrates with wttr.in weather API
+   - Returns temperature, humidity, wind speed, and conditions
+   - REST API endpoint: `/api/weather`
+
+4. **Dashboard Service** (port 5000)
+   - Aggregates data from all three services
    - Demonstrates service-to-service communication
    - Provides both web UI and REST API endpoint
+   - Displays all data in a user-friendly interface
 
 ## Key Microservices Concepts Demonstrated
 
 - **Service Independence**: Each service runs in its own container
 - **API Communication**: Services communicate via REST APIs
 - **Service Discovery**: Services find each other using Docker networking
+- **External API Integration**: Weather service demonstrates integration with external APIs
 - **Scalability**: Each service can be scaled independently
 - **Containerization**: Each service is containerized with Docker
+- **Health Checks**: All services have health check endpoints
+- **System Monitoring**: Detailed system metrics collection using psutil
 
 ## Prerequisites
 
@@ -78,7 +93,7 @@ docker-compose up --build
 ```
 
 This command will:
-- Build Docker images for all three services
+- Build Docker images for all four services
 - Create containers
 - Start all services
 - Set up networking between them
@@ -93,6 +108,7 @@ This command will:
 **Individual Service APIs**:
 - Time Service: http://localhost:5001/api/time
 - System Info Service: http://localhost:5002/api/sysinfo
+- Weather Service: http://localhost:5003/api/weather
 - Dashboard API (aggregated): http://localhost:5000/api/aggregate
 
 ### Step 4: Stop the services
@@ -115,15 +131,35 @@ def get_time():
 ```python
 @app.route('/api/sysinfo', methods=['GET'])
 def get_system_info():
-    hostname = socket.gethostname()
-    return jsonify({'service': 'system-info-service', 'hostname': hostname})
+    # Collects detailed system metrics
+    system_info = {
+        'hostname': hostname,
+        'platform': platform.system(),
+        'platform_release': platform.release(),
+        'cpu_count': psutil.cpu_count(logical=True),
+        'memory_total_gb': round(psutil.virtual_memory().total / (1024**3), 2),
+        'python_version': platform.python_version()
+    }
+    return jsonify(system_info)
+```
+
+### Weather Service (weather-service/app.py)
+```python
+@app.route('/api/weather', methods=['GET'])
+def get_weather():
+    # Fetches real-time weather for Haifa, Israel
+    weather_url = 'https://wttr.in/Haifa,Israel?format=j1'
+    weather_response = requests.get(weather_url, timeout=5)
+    weather_data = weather_response.json()
+    return jsonify(weather_info)
 ```
 
 ### Dashboard Service (dashboard-service/app.py)
 ```python
-# This service CALLS the other services
+# This service CALLS all other services
 time_response = requests.get('http://time-service:5001/api/time')
 sysinfo_response = requests.get('http://system-info-service:5002/api/sysinfo')
+weather_response = requests.get('http://weather-service:5003/api/weather')
 ```
 
 ## Project Structure
@@ -135,11 +171,15 @@ sysinfo_response = requests.get('http://system-info-service:5002/api/sysinfo')
 │   ├── Dockerfile          # Container definition
 │   └── requirements.txt    # Python dependencies
 ├── system-info-service/
-│   ├── app.py
+│   ├── app.py              # Enhanced with psutil
+│   ├── Dockerfile
+│   └── requirements.txt
+├── weather-service/
+│   ├── app.py              # Weather API integration
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── dashboard-service/
-│   ├── app.py
+│   ├── app.py              # Aggregates all services
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── docker-compose.yml      # Orchestration configuration
@@ -160,7 +200,7 @@ sudo usermod -aG docker $USER
 ```
 
 ### Port already in use
-If ports 5000, 5001, or 5002 are in use, modify the ports in `docker-compose.yml`
+If ports 5000, 5001, 5002, or 5003 are in use, modify the ports in `docker-compose.yml`
 
 ### View logs
 ```bash
