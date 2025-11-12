@@ -186,6 +186,9 @@ This project is fully compatible with Windows! The docker-compose configuration 
 - Falls back to `COMPUTERNAME` on Windows
 - Defaults to `localhost` if neither is set
 
+**Windows SSL Certificate Fix (Added: 2025-11-12)**:
+The weather service now uses the `certifi` package to handle SSL certificate verification for HTTPS requests to the wttr.in API. This ensures reliable SSL connections across all platforms (Windows, Linux, macOS) by providing a consistent CA certificate bundle.
+
 Make sure Docker Desktop is running before executing `docker-compose up --build`.
 
 ## How to Run
@@ -256,11 +259,14 @@ def get_system_info():
 
 ### Weather Service (weather-service/app.py)
 ```python
+import certifi  # For cross-platform SSL verification
+
 @app.route('/api/weather', methods=['GET'])
 def get_weather():
     # Fetches real-time weather for Haifa, Israel
     weather_url = 'https://wttr.in/Haifa,Israel?format=j1'
-    weather_response = requests.get(weather_url, timeout=5)
+    # Use certifi for reliable SSL verification on all platforms (Windows, Linux, macOS)
+    weather_response = requests.get(weather_url, timeout=5, verify=certifi.where())
     weather_data = weather_response.json()
     return jsonify(weather_info)
 ```
@@ -286,9 +292,9 @@ weather_response = requests.get('http://weather-service:5003/api/weather')
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── weather-service/
-│   ├── app.py              # Weather API integration
+│   ├── app.py              # Weather API integration with certifi SSL
 │   ├── Dockerfile
-│   └── requirements.txt
+│   └── requirements.txt    # Includes certifi for cross-platform SSL
 ├── dashboard-service/
 │   ├── app.py              # Aggregates all services
 │   ├── Dockerfile
@@ -321,6 +327,22 @@ If ports 5000, 5001, 5002, or 5003 are in use, modify the ports in `docker-compo
 
 ### HOSTNAME variable warning (Fixed)
 This has been resolved with cross-platform environment variable fallbacks. The project now works seamlessly on Windows, Linux, and Mac.
+
+### Weather service SSL errors on Windows (Fixed)
+**Issue**: Weather service fails to fetch data from wttr.in API with SSL certificate verification errors on Windows.
+
+**Solution**: The weather service now uses the `certifi` package which provides Mozilla's CA certificate bundle. This ensures consistent SSL verification across all platforms.
+
+**Technical details**:
+- Added `certifi==2024.8.30` to `weather-service/requirements.txt`
+- Modified the HTTPS request to use `verify=certifi.where()`
+- This fix works on Windows, Linux, and macOS without any platform-specific changes
+
+If you still see weather errors after this fix, rebuild the weather service container:
+```bash
+docker-compose build weather-service
+docker-compose up -d
+```
 
 ### View logs
 ```bash

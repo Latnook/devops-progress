@@ -1,5 +1,6 @@
 from flask import Flask, jsonify
 import requests
+import certifi
 import socket
 from datetime import datetime, timedelta
 
@@ -38,7 +39,7 @@ def get_weather():
 
         # Get weather data from wttr.in API for Haifa
         weather_url = f'https://wttr.in/Haifa,Israel?format=j1'
-        weather_response = requests.get(weather_url, timeout=5)
+        weather_response = requests.get(weather_url, timeout=5, verify=certifi.where())
         weather_data = weather_response.json()
 
         # Extract relevant weather information
