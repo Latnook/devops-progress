@@ -75,8 +75,9 @@ HTML_TEMPLATE = '''
 
         <div class="service-box">
             <div class="service-title">⏰ Time Service</div>
-            <div class="data-item"><span class="label">Current Time:</span> {{ time_data.timestamp }}</div>
-            <div class="data-item"><span class="label">Service:</span> {{ time_data.service }}</div>
+            <div class="data-item"><span class="label">Current Time:</span> <span id="current-time">{{ time_data.timestamp }}</span></div>
+            <div class="data-item"><span class="label">Service:</span> <span id="time-service-name">{{ time_data.service }}</span></div>
+            <div class="data-item"><span class="label">Status:</span> <span id="time-status" style="color: #4CAF50;">●</span> <span id="time-status-text">Live</span></div>
         </div>
 
         <div class="service-box">
@@ -108,6 +109,28 @@ HTML_TEMPLATE = '''
 
         <button class="refresh-btn" onclick="location.reload()">Refresh Data</button>
     </div>
+    <script>
+        // Update time every second
+        function updateTime() {
+            fetch('/api/time-proxy')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('current-time').textContent = data.timestamp;
+                    document.getElementById('time-service-name').textContent = data.service;
+                    document.getElementById('time-status').style.color = '#4CAF50';
+                    document.getElementById('time-status-text').textContent = 'Live';
+                })
+                .catch(error => {
+                    document.getElementById('current-time').textContent = 'Service unavailable';
+                    document.getElementById('time-status').style.color = '#d32f2f';
+                    document.getElementById('time-status-text').textContent = 'Offline';
+                });
+        }
+
+        // Update immediately and then every second
+        updateTime();
+        setInterval(updateTime, 1000);
+    </script>
 </body>
 </html>
 '''
@@ -153,6 +176,14 @@ def aggregate():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/time-proxy', methods=['GET'])
+def time_proxy():
+    try:
+        time_response = requests.get(TIME_SERVICE_URL, timeout=5)
+        return jsonify(time_response.json())
+    except Exception as e:
+        return jsonify({'service': 'time-service', 'timestamp': f'Error: {str(e)}'}), 500
 
 @app.route('/health', methods=['GET'])
 def health():

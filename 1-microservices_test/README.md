@@ -49,6 +49,8 @@ This project demonstrates a microservices architecture with four independent ser
    - Demonstrates service-to-service communication
    - Provides both web UI and REST API endpoint
    - Displays all data in a user-friendly interface
+   - **Real-time clock updates**: Time ticks live every second using JavaScript
+   - **Graceful degradation**: Dashboard continues working even if services fail
 
 ## Key Microservices Concepts Demonstrated
 
@@ -60,6 +62,61 @@ This project demonstrates a microservices architecture with four independent ser
 - **Containerization**: Each service is containerized with Docker
 - **Health Checks**: All services have health check endpoints
 - **System Monitoring**: Detailed system metrics collection using psutil
+- **Graceful Degradation**: Dashboard continues functioning when services fail
+- **Real-time Updates**: Live clock using JavaScript and AJAX polling
+
+## Real-Time Features (Added: 2025-11-12)
+
+The dashboard now includes **real-time clock updates** that demonstrate modern web application patterns:
+
+### How It Works
+
+1. **JavaScript Polling**: The dashboard uses `setInterval()` to poll the time service every second
+2. **AJAX Requests**: Uses Fetch API to make asynchronous calls to `/api/time-proxy`
+3. **Proxy Endpoint**: Dashboard service provides `/api/time-proxy` that forwards requests to the time service
+4. **Live Status Indicator**: Shows green "Live" status when service is running, red "Offline" if it fails
+5. **DOM Updates**: JavaScript updates the page without refreshing using `document.getElementById()`
+
+### Implementation Details
+
+**New API Endpoint** (`/api/time-proxy`):
+```python
+@app.route('/api/time-proxy', methods=['GET'])
+def time_proxy():
+    try:
+        time_response = requests.get(TIME_SERVICE_URL, timeout=5)
+        return jsonify(time_response.json())
+    except Exception as e:
+        return jsonify({'service': 'time-service', 'timestamp': f'Error: {str(e)}'}), 500
+```
+
+**JavaScript Auto-Update**:
+```javascript
+function updateTime() {
+    fetch('/api/time-proxy')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('current-time').textContent = data.timestamp;
+            document.getElementById('time-status').style.color = '#4CAF50';
+            document.getElementById('time-status-text').textContent = 'Live';
+        })
+        .catch(error => {
+            document.getElementById('current-time').textContent = 'Service unavailable';
+            document.getElementById('time-status').style.color = '#d32f2f';
+            document.getElementById('time-status-text').textContent = 'Offline';
+        });
+}
+
+// Update every second
+setInterval(updateTime, 1000);
+```
+
+### Why This Pattern?
+
+- **Browser Limitation**: Browsers cannot resolve Docker service names (e.g., `http://time-service:5001`)
+- **Proxy Solution**: Dashboard acts as a proxy between browser and internal services
+- **Real-time UX**: Users see live updates without manual refresh
+- **Resilience Testing**: Watch the status indicator turn red when you stop a service
 
 ## Prerequisites
 
@@ -102,14 +159,17 @@ This command will:
 
 **Web Dashboard (Recommended)**:
 - Open your browser and go to: http://localhost:5000
-- You'll see a nice dashboard showing data from both services
-- Click "Refresh Data" to see the time update
+- You'll see a nice dashboard showing data from all services
+- **Watch the clock tick in real-time** - it updates every second automatically!
+- The status indicator shows green when services are live
+- Click "Refresh Data" to reload all other service data
 
 **Individual Service APIs**:
 - Time Service: http://localhost:5001/api/time
 - System Info Service: http://localhost:5002/api/sysinfo
 - Weather Service: http://localhost:5003/api/weather
 - Dashboard API (aggregated): http://localhost:5000/api/aggregate
+- Time Proxy (for browser polling): http://localhost:5000/api/time-proxy
 
 ### Step 4: Stop the services
 Press `Ctrl+C` in the terminal, then run:
@@ -211,12 +271,30 @@ docker-compose logs -f
 
 Try these to learn more:
 
-1. **Scale a service**:
+1. **Test Resilience** (Recommended first exercise!):
+   ```bash
+   # Start all services in detached mode
+   docker-compose up -d
+
+   # Open http://localhost:5000 and watch the live clock
+
+   # Stop the time service
+   docker-compose stop time-service
+
+   # Watch the dashboard: clock turns red and shows "Offline"
+   # But other services continue working!
+
+   # Restart the service
+   docker-compose start time-service
+
+   # Watch the clock turn green and resume ticking
+   ```
+   This demonstrates **graceful degradation** - a key microservices principle!
+
+2. **Scale a service**:
    ```bash
    docker-compose up --scale time-service=3
    ```
-
-2. **Stop one service** and see what happens to the dashboard
 
 3. **Modify the services** to return different data
 
