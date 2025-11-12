@@ -26,6 +26,7 @@ A demonstration of microservices architecture featuring four services communicat
 - Real-time weather integration using wttr.in API
 - Health checks for all services
 - Docker networking and container orchestration
+- **Cross-platform compatibility** (Windows, Linux, Mac)
 
 [View Project →](1-microservices_test/)
 

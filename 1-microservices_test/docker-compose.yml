@@ -20,7 +20,7 @@ services:
     networks:
       - microservices-network
     environment:
-      - HOST_HOSTNAME=${HOSTNAME}
+      - HOST_HOSTNAME=${HOSTNAME:-${COMPUTERNAME:-localhost}}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
       interval: 30s

@@ -137,6 +137,14 @@ You need to install the following on your computer:
    docker-compose --version
    ```
 
+### Windows Users
+This project is fully compatible with Windows! The docker-compose configuration uses cross-platform environment variable fallbacks:
+- Uses `HOSTNAME` on Linux/Mac
+- Falls back to `COMPUTERNAME` on Windows
+- Defaults to `localhost` if neither is set
+
+Make sure Docker Desktop is running before executing `docker-compose up --build`.
+
 ## How to Run
 
 ### Step 1: Navigate to the project directory
@@ -249,11 +257,17 @@ weather_response = requests.get('http://weather-service:5003/api/weather')
 ## Troubleshooting
 
 ### Docker daemon not running
+
+**Windows:**
+- Open Docker Desktop application and wait for it to fully start
+- The Docker whale icon in system tray should be steady (not animated)
+
+**Linux:**
 ```bash
 sudo systemctl start docker
 ```
 
-### Permission denied
+### Permission denied (Linux only)
 ```bash
 sudo usermod -aG docker $USER
 # Log out and log back in
@@ -261,6 +275,9 @@ sudo usermod -aG docker $USER
 
 ### Port already in use
 If ports 5000, 5001, 5002, or 5003 are in use, modify the ports in `docker-compose.yml`
+
+### HOSTNAME variable warning (Fixed)
+This has been resolved with cross-platform environment variable fallbacks. The project now works seamlessly on Windows, Linux, and Mac.
 
 ### View logs
 ```bash
