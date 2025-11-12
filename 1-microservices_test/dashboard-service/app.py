@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, render_template_string
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 app = Flask(__name__)
 
@@ -63,6 +64,33 @@ HTML_TEMPLATE = '''
         .refresh-btn:hover {
             background-color: #45a049;
         }
+        .cache-badge {
+            display: inline-block;
+            background-color: #ff9800;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .perf-info {
+            background-color: #e8f5e9;
+            border-left: 4px solid #4CAF50;
+            padding: 10px 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .perf-info strong {
+            color: #2E7D32;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .loading {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
     </style>
 </head>
 <body>
@@ -72,6 +100,10 @@ HTML_TEMPLATE = '''
         </div>
         <h1>Microservices Dashboard</h1>
         <p style="text-align: center; color: #666;">This dashboard aggregates data from multiple microservices</p>
+
+        <div class="perf-info">
+            <strong>⚡ Performance Optimizations Active:</strong> Parallel API calls, intelligent caching, and reduced timeouts for faster load times!
+        </div>
 
         <div class="service-box">
             <div class="service-title">⏰ Time Service</div>
@@ -93,10 +125,18 @@ HTML_TEMPLATE = '''
         </div>
 
         <div class="service-box">
-            <div class="service-title">🌤️ Weather Service</div>
-            {% if weather_data.get('error') %}
+            <div class="service-title">
+                🌤️ Weather Service
+                {% if weather_data.get('cached') %}
+                    <span class="cache-badge">CACHED{% if weather_data.get('cache_age_seconds') %} ({{ weather_data.cache_age_seconds }}s old){% endif %}</span>
+                {% endif %}
+            </div>
+            {% if weather_data.get('error') and not weather_data.get('stale') %}
                 <div class="data-item" style="color: #d32f2f;"><span class="label">Status:</span> {{ weather_data.message }}</div>
             {% else %}
+                {% if weather_data.get('stale') %}
+                    <div class="data-item" style="color: #ff9800; font-size: 12px;">⚠️ Using cached data due to API error</div>
+                {% endif %}
                 <div class="data-item"><span class="label">Location:</span> {{ weather_data.location.city }}, {{ weather_data.location.country }}</div>
                 <div class="data-item"><span class="label">Coordinates:</span> {{ weather_data.location.latitude }}, {{ weather_data.location.longitude }}</div>
                 <div class="data-item"><span class="label">Condition:</span> {{ weather_data.weather.condition }}</div>
@@ -135,52 +175,63 @@ HTML_TEMPLATE = '''
 </html>
 '''
 
+def fetch_service(service_name, url, timeout, default_error):
+    """Helper function to fetch data from a service"""
+    try:
+        response = requests.get(url, timeout=timeout)
+        return service_name, response.json()
+    except Exception as e:
+        return service_name, default_error(e)
+
 @app.route('/', methods=['GET'])
 def dashboard():
-    try:
-        # Call time service
-        time_response = requests.get(TIME_SERVICE_URL, timeout=5)
-        time_data = time_response.json()
-    except Exception as e:
-        time_data = {'service': 'time-service', 'timestamp': f'Error: {str(e)}'}
+    # Define services to call with their configurations
+    services = [
+        ('time', TIME_SERVICE_URL, 3, lambda e: {'service': 'time-service', 'timestamp': f'Error: {str(e)}'}),
+        ('sysinfo', SYSINFO_SERVICE_URL, 3, lambda e: {'service': 'system-info-service', 'hostname': f'Error: {str(e)}', 'container_hostname': 'N/A', 'platform': 'N/A'}),
+        ('weather', WEATHER_SERVICE_URL, 5, lambda e: {'service': 'weather-service', 'error': str(e), 'message': 'Could not fetch weather data'})
+    ]
 
-    try:
-        # Call system info service
-        sysinfo_response = requests.get(SYSINFO_SERVICE_URL, timeout=5)
-        sysinfo_data = sysinfo_response.json()
-    except Exception as e:
-        sysinfo_data = {'service': 'system-info-service', 'hostname': f'Error: {str(e)}', 'container_hostname': 'N/A', 'platform': 'N/A'}
+    # Fetch all services in parallel
+    results = {}
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {executor.submit(fetch_service, name, url, timeout, error_handler): name
+                   for name, url, timeout, error_handler in services}
 
-    try:
-        # Call weather service
-        weather_response = requests.get(WEATHER_SERVICE_URL, timeout=10)
-        weather_data = weather_response.json()
-    except Exception as e:
-        weather_data = {'service': 'weather-service', 'error': str(e), 'message': 'Could not fetch weather data'}
+        for future in as_completed(futures):
+            service_name, data = future.result()
+            results[service_name] = data
 
-    return render_template_string(HTML_TEMPLATE, time_data=time_data, sysinfo_data=sysinfo_data, weather_data=weather_data)
+    return render_template_string(
+        HTML_TEMPLATE,
+        time_data=results.get('time', {}),
+        sysinfo_data=results.get('sysinfo', {}),
+        weather_data=results.get('weather', {})
+    )
 
 @app.route('/api/aggregate', methods=['GET'])
 def aggregate():
-    try:
-        # Call all services
-        time_response = requests.get(TIME_SERVICE_URL, timeout=5)
-        sysinfo_response = requests.get(SYSINFO_SERVICE_URL, timeout=5)
-        weather_response = requests.get(WEATHER_SERVICE_URL, timeout=10)
+    services = [
+        ('time_service', TIME_SERVICE_URL, 3, lambda e: {'error': str(e)}),
+        ('sysinfo_service', SYSINFO_SERVICE_URL, 3, lambda e: {'error': str(e)}),
+        ('weather_service', WEATHER_SERVICE_URL, 5, lambda e: {'error': str(e)})
+    ]
 
-        return jsonify({
-            'dashboard': 'aggregator-service',
-            'time_service': time_response.json(),
-            'sysinfo_service': sysinfo_response.json(),
-            'weather_service': weather_response.json()
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    results = {'dashboard': 'aggregator-service'}
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {executor.submit(fetch_service, name, url, timeout, error_handler): name
+                   for name, url, timeout, error_handler in services}
+
+        for future in as_completed(futures):
+            service_name, data = future.result()
+            results[service_name] = data
+
+    return jsonify(results)
 
 @app.route('/api/time-proxy', methods=['GET'])
 def time_proxy():
     try:
-        time_response = requests.get(TIME_SERVICE_URL, timeout=5)
+        time_response = requests.get(TIME_SERVICE_URL, timeout=2)
         return jsonify(time_response.json())
     except Exception as e:
         return jsonify({'service': 'time-service', 'timestamp': f'Error: {str(e)}'}), 500
