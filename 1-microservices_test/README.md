@@ -1,6 +1,8 @@
 # Microservices Demo Project
 
-A demonstration of microservices architecture using Docker, Docker Compose, Python Flask, and external API integration.
+A demonstration of **polyglot microservices architecture** using Docker, Docker Compose, and multiple programming languages (Go, Node.js, Python), showcasing how different languages can work together seamlessly through REST APIs.
+
+**Latest Update: 2025-11-13** - Converted to polyglot architecture with Go, Node.js, and Python services!
 
 ## Architecture
 
@@ -24,12 +26,14 @@ This project demonstrates a microservices architecture with four independent ser
 
 ### Services:
 
-1. **Time Service** (port 5001)
+1. **Time Service** (port 5001) - **Written in Go** 🚀
+   - Blazing fast compiled service using Go's native HTTP server
    - Returns current timestamp
    - Independent microservice
    - REST API endpoint: `/api/time`
+   - **Why Go?** Perfect for simple, high-performance services with low memory footprint
 
-2. **System Info Service** (port 5002)
+2. **System Info Service** (port 5002) - **Written in Python** 🐍
    - Returns detailed system information:
      - OS version and kernel release
      - CPU architecture and core count
@@ -37,35 +41,154 @@ This project demonstrates a microservices architecture with four independent ser
      - Python version
    - Independent microservice
    - REST API endpoint: `/api/sysinfo`
+   - **Why Python?** Excellent libraries (psutil) for system information gathering
 
-3. **Weather Service** (port 5003)
+3. **Weather Service** (port 5003) - **Written in Node.js** 🟢
    - Fetches real-time weather data for Haifa, Israel
-   - Integrates with wttr.in weather API
+   - Integrates with wttr.in weather API using Axios
    - Returns temperature, humidity, wind speed, and conditions
+   - Includes intelligent caching (10 minutes)
    - REST API endpoint: `/api/weather`
+   - **Why Node.js?** Perfect for async I/O operations and external API calls
 
-4. **Dashboard Service** (port 5000)
+4. **Dashboard Service** (port 5000) - **Written in Python** 🐍
    - Aggregates data from all three services
-   - Demonstrates service-to-service communication
+   - Demonstrates service-to-service communication across different languages
    - Provides both web UI and REST API endpoint
    - Displays all data in a user-friendly interface
    - **Real-time clock updates**: Time ticks live every second using JavaScript
    - **Graceful degradation**: Dashboard continues working even if services fail
+   - **Parallel API calls**: Uses ThreadPoolExecutor for concurrent requests
+   - **Why Python?** Flask makes it easy to build web UIs and aggregate data
 
 ## Key Microservices Concepts Demonstrated
 
-- **Service Independence**: Each service runs in its own container
-- **API Communication**: Services communicate via REST APIs
-- **Service Discovery**: Services find each other using Docker networking
+- **Polyglot Architecture** ⭐ **NEW (2025-11-13)**: Services written in Go, Node.js, and Python working together
+- **Language-Agnostic Communication**: REST APIs allow different languages to communicate seamlessly
+- **Service Independence**: Each service runs in its own container with its own runtime
+- **API Communication**: Services communicate via REST APIs using JSON
+- **Service Discovery**: Services find each other using Docker networking (service name resolution)
 - **External API Integration**: Weather service demonstrates integration with external APIs
 - **Scalability**: Each service can be scaled independently
-- **Containerization**: Each service is containerized with Docker
+- **Containerization**: Each service is containerized with Docker using language-specific base images
+- **Multi-stage Builds**: Go service uses multi-stage Docker builds for minimal image size
 - **Health Checks**: All services have health check endpoints
 - **System Monitoring**: Detailed system metrics collection using psutil
 - **Graceful Degradation**: Dashboard continues functioning when services fail
 - **Real-time Updates**: Live clock using JavaScript and AJAX polling
 - **Performance Optimization**: Parallel API calls, intelligent caching, and reduced timeouts
 - **Asynchronous Operations**: Using ThreadPoolExecutor for concurrent service calls
+- **Best Tool for the Job**: Each service uses the language best suited for its task
+
+## Polyglot Microservices Architecture (Added: 2025-11-13)
+
+This project demonstrates a **true polyglot architecture** where services are written in different programming languages but work together seamlessly through REST APIs and Docker containers.
+
+### Why Polyglot?
+
+**Advantages:**
+- **Right tool for the job**: Use the best language for each specific task
+- **Team autonomy**: Different teams can use their preferred languages
+- **Performance optimization**: Optimize critical services without rewriting everything
+- **Learning opportunity**: Explore different languages in a practical context
+- **Technology flexibility**: Not locked into a single language ecosystem
+
+**How It Works:**
+1. **Docker** abstracts away language differences - each service runs in its own container
+2. **REST APIs** provide language-agnostic communication using HTTP and JSON
+3. **Docker networking** allows services to discover each other by name
+4. Services don't need to know what language other services are written in!
+
+### Language Choices Explained
+
+| Service | Language | Why This Language? | Key Features |
+|---------|----------|-------------------|--------------|
+| **Time Service** | Go | Fast, compiled, low memory usage | Native HTTP server, no frameworks needed |
+| **Weather Service** | Node.js | Excellent for async I/O and external APIs | Non-blocking I/O, great npm ecosystem (axios) |
+| **System Info** | Python | Rich system libraries (psutil) | Easy to work with system information |
+| **Dashboard** | Python | Quick web development with Flask | Simple templating, easy aggregation logic |
+
+### Technical Implementation
+
+**Go Service (time-service/main.go):**
+```go
+package main
+
+import (
+    "encoding/json"
+    "net/http"
+    "time"
+)
+
+func getTimeHandler(w http.ResponseWriter, r *http.Request) {
+    currentTime := time.Now().Format("2006-01-02 15:04:05")
+    response := TimeResponse{
+        Service:   "time-service",
+        Timestamp: currentTime,
+    }
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
+```
+
+**Node.js Service (weather-service/server.js):**
+```javascript
+const express = require('express');
+const axios = require('axios');
+
+app.get('/api/weather', async (req, res) => {
+    const weatherUrl = 'https://wttr.in/Haifa,Israel?format=j1';
+    const weatherResponse = await axios.get(weatherUrl, { timeout: 5000 });
+    res.json(responseData);
+});
+```
+
+**Python Service (system-info-service/app.py):**
+```python
+import psutil
+from flask import Flask, jsonify
+
+@app.route('/api/sysinfo', methods=['GET'])
+def get_system_info():
+    return jsonify({
+        'cpu_count': psutil.cpu_count(),
+        'memory_total_gb': round(psutil.virtual_memory().total / (1024**3), 2)
+    })
+```
+
+### Docker Configuration for Polyglot Services
+
+**Multi-stage build for Go (smaller images):**
+```dockerfile
+FROM golang:1.21-alpine AS builder
+WORKDIR /app
+COPY go.mod main.go ./
+RUN go build -o time-service main.go
+
+FROM alpine:latest
+COPY --from=builder /app/time-service .
+CMD ["./time-service"]
+```
+
+**Node.js with package management:**
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package.json ./
+RUN npm install --production
+COPY server.js ./
+CMD ["npm", "start"]
+```
+
+**Python with Flask:**
+```dockerfile
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY app.py .
+CMD ["python", "app.py"]
+```
 
 ## Performance Optimizations (Added: 2025-11-12)
 
@@ -233,15 +356,20 @@ docker-compose down
 
 ## Understanding the Code
 
-### Time Service (time-service/app.py)
-```python
-@app.route('/api/time', methods=['GET'])
-def get_time():
-    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    return jsonify({'service': 'time-service', 'timestamp': current_time})
+### Time Service (time-service/main.go) - Go
+```go
+func getTimeHandler(w http.ResponseWriter, r *http.Request) {
+    currentTime := time.Now().Format("2006-01-02 15:04:05")
+    response := TimeResponse{
+        Service:   "time-service",
+        Timestamp: currentTime,
+    }
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
 ```
 
-### System Info Service (system-info-service/app.py)
+### System Info Service (system-info-service/app.py) - Python
 ```python
 @app.route('/api/sysinfo', methods=['GET'])
 def get_system_info():
@@ -257,21 +385,25 @@ def get_system_info():
     return jsonify(system_info)
 ```
 
-### Weather Service (weather-service/app.py)
-```python
-import certifi  # For cross-platform SSL verification
+### Weather Service (weather-service/server.js) - Node.js
+```javascript
+const express = require('express');
+const axios = require('axios');
 
-@app.route('/api/weather', methods=['GET'])
-def get_weather():
-    # Fetches real-time weather for Haifa, Israel
-    weather_url = 'https://wttr.in/Haifa,Israel?format=j1'
-    # Use certifi for reliable SSL verification on all platforms (Windows, Linux, macOS)
-    weather_response = requests.get(weather_url, timeout=5, verify=certifi.where())
-    weather_data = weather_response.json()
-    return jsonify(weather_info)
+app.get('/api/weather', async (req, res) => {
+    try {
+        const weatherUrl = 'https://wttr.in/Haifa,Israel?format=j1';
+        const weatherResponse = await axios.get(weatherUrl, { timeout: 5000 });
+        const weatherData = weatherResponse.data;
+        // Process and return weather data with caching
+        res.json(responseData);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 ```
 
-### Dashboard Service (dashboard-service/app.py)
+### Dashboard Service (dashboard-service/app.py) - Python
 ```python
 # This service CALLS all other services
 time_response = requests.get('http://time-service:5001/api/time')
@@ -283,24 +415,27 @@ weather_response = requests.get('http://weather-service:5003/api/weather')
 
 ```
 1-microservices_test/
-├── time-service/
-│   ├── app.py              # Flask application
-│   ├── Dockerfile          # Container definition
-│   └── requirements.txt    # Python dependencies
-├── system-info-service/
-│   ├── app.py              # Enhanced with psutil
-│   ├── Dockerfile
-│   └── requirements.txt
-├── weather-service/
-│   ├── app.py              # Weather API integration with certifi SSL
-│   ├── Dockerfile
-│   └── requirements.txt    # Includes certifi for cross-platform SSL
-├── dashboard-service/
-│   ├── app.py              # Aggregates all services
-│   ├── Dockerfile
-│   └── requirements.txt
-├── docker-compose.yml      # Orchestration configuration
-└── README.md
+├── time-service/               [Go Service]
+│   ├── main.go                # Go HTTP server
+│   ├── go.mod                 # Go module definition
+│   └── Dockerfile             # Multi-stage build for Go
+├── system-info-service/        [Python Service]
+│   ├── app.py                 # Flask application with psutil
+│   ├── Dockerfile             # Python container
+│   └── requirements.txt       # Python dependencies
+├── weather-service/            [Node.js Service]
+│   ├── server.js              # Express server with axios
+│   ├── package.json           # npm dependencies
+│   └── Dockerfile             # Node.js container
+├── dashboard-service/          [Python Service]
+│   ├── app.py                 # Flask aggregator with web UI
+│   ├── Dockerfile             # Python container
+│   └── requirements.txt       # Flask and requests
+├── docker-compose.yml         # Orchestrates all polyglot services
+└── README.md                  # This file
+
+Note: Legacy Python files (app.py in time/weather services) are kept for reference
+but are not used in the current polyglot architecture.
 ```
 
 ## Troubleshooting

@@ -8,27 +8,31 @@ This is a hands-on learning repository where I'll be practicing and implementing
 
 ## Projects
 
-### 1. Microservices Architecture Demo
-**Status:** ✅ Completed
+### 1. Polyglot Microservices Architecture Demo
+**Status:** ✅ Completed ⭐ **Updated: 2025-11-13**
 **Location:** [`1-microservices_test/`](1-microservices_test/)
 
-A demonstration of microservices architecture featuring four services communicating via REST APIs:
-- **Time Service** - Returns current timestamp
-- **System Info Service** - Returns detailed system information (OS, CPU, memory, Python version)
-- **Weather Service** - Fetches real-time weather data for Haifa, Israel
-- **Dashboard Service** - Aggregates data from all services with a web interface
+A demonstration of **polyglot microservices architecture** featuring services written in **Go, Node.js, and Python** communicating seamlessly via REST APIs:
+- **Time Service** (Go) - Blazing fast compiled service for timestamps
+- **System Info Service** (Python) - Detailed system information using psutil
+- **Weather Service** (Node.js) - Async weather data fetching with caching
+- **Dashboard Service** (Python) - Web UI aggregating all services
 
-**Technologies:** Docker, Docker Compose, Python Flask, REST APIs, External API Integration
+**Technologies:** Docker, Docker Compose, Go, Node.js, Python Flask, REST APIs, External API Integration
 
-**Features:**
-- Service-to-service communication
+**Key Concepts Demonstrated:**
+- **Polyglot architecture** - Multiple programming languages working together
+- Language-agnostic communication via REST APIs and JSON
+- Service-to-service communication across different runtimes
+- Multi-stage Docker builds (Go service)
 - Detailed system metrics (CPU cores, memory usage, architecture)
 - Real-time weather integration using wttr.in API
 - Health checks for all services
 - Docker networking and container orchestration
-- Cross-platform compatibility with Windows SSL certificate fix (using certifi)
+- Cross-platform compatibility (Windows, Linux, macOS)
 - **Performance optimizations** (parallel API calls, caching, reduced timeouts)
 - Real-time updates with live clock
+- Best tool for the job - each service uses optimal language
 
 [View Project →](1-microservices_test/)
 
@@ -36,7 +40,8 @@ A demonstration of microservices architecture featuring four services communicat
 
 Here are the topics I plan to cover as I progress in my DevOps journey:
 
-- [x] **Microservices Architecture** - Service-to-service communication
+- [x] **Microservices Architecture** - Service-to-service communication (completed 2025-11-11)
+- [x] **Polyglot Microservices** - Multi-language services (Go, Node.js, Python) (completed 2025-11-13)
 - [ ] **Linux Administration** - System administration and shell scripting
 - [ ] **Programming & Scripting** - Python, Bash, and automation scripts
 - [ ] **Cloud Platforms** - AWS, Azure, or GCP
@@ -59,8 +64,9 @@ devops-progress/
 ## Progress Tracking
 
 **Started:** November 11, 2025
-**Projects Completed:** 1
-**Current Focus:** Microservices Architecture
+**Last Updated:** November 13, 2025
+**Projects Completed:** 1 (with polyglot enhancement)
+**Current Focus:** Polyglot Microservices Architecture
 
 ---
 

@@ -1,4 +1,5 @@
 services:
+  # Time Service - Written in Go
   time-service:
     build: ./time-service
     container_name: time-service
@@ -12,6 +13,7 @@ services:
       timeout: 10s
       retries: 3
 
+  # System Info Service - Written in Python
   system-info-service:
     build: ./system-info-service
     container_name: system-info-service
@@ -27,6 +29,7 @@ services:
       timeout: 10s
       retries: 3
 
+  # Weather Service - Written in Node.js
   weather-service:
     build: ./weather-service
     container_name: weather-service
@@ -40,6 +43,7 @@ services:
       timeout: 10s
       retries: 3
 
+  # Dashboard Service - Written in Python
   dashboard-service:
     build: ./dashboard-service
     container_name: dashboard-service

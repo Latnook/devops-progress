@@ -1,12 +1,21 @@
-FROM python:3.11-slim
+# Build stage
+FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY go.mod ./
+RUN go mod download
 
-COPY app.py .
+COPY main.go ./
+RUN go build -o time-service main.go
+
+# Runtime stage
+FROM alpine:latest
+
+WORKDIR /app
+
+COPY --from=builder /app/time-service .
 
 EXPOSE 5001
 
-CMD ["python", "app.py"]
+CMD ["./time-service"]
