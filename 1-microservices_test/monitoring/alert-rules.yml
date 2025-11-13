@@ -1,0 +1,151 @@
+groups:
+  - name: microservices_alerts
+    interval: 10s
+    rules:
+      # High Latency Alerts
+      - alert: HighLatency
+        expr: |
+          (
+            rate(time_service_http_request_duration_seconds_sum[1m])
+            /
+            rate(time_service_http_request_duration_seconds_count[1m])
+          ) > 0.5
+        for: 1m
+        labels:
+          severity: warning
+          service: time-service
+        annotations:
+          summary: "High latency detected on {{ $labels.job }}"
+          description: "{{ $labels.job }} is experiencing high latency ({{ $value }}s average over 1m)"
+
+      - alert: WeatherServiceHighLatency
+        expr: |
+          (
+            rate(weather_service_http_request_duration_seconds_sum[1m])
+            /
+            rate(weather_service_http_request_duration_seconds_count[1m])
+          ) > 2
+        for: 2m
+        labels:
+          severity: warning
+          service: weather-service
+        annotations:
+          summary: "Weather service latency is high"
+          description: "Weather service latency is {{ $value }}s (threshold: 2s)"
+
+      # High Request Rate Alerts
+      - alert: HighRequestRate
+        expr: sum by (job) (rate({__name__=~".*http_requests_total"}[1m])) > 10
+        for: 2m
+        labels:
+          severity: info
+          type: traffic
+        annotations:
+          summary: "High request rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} is receiving {{ $value }} req/s"
+
+      - alert: TrafficSpike
+        expr: |
+          (
+            sum by (job) (rate({__name__=~".*http_requests_total"}[1m]))
+            /
+            sum by (job) (rate({__name__=~".*http_requests_total"}[5m]))
+          ) > 2
+        for: 1m
+        labels:
+          severity: warning
+          type: traffic
+        annotations:
+          summary: "Traffic spike detected on {{ $labels.job }}"
+          description: "{{ $labels.job }} traffic increased {{ $value }}x compared to 5m average"
+
+      # Error Rate Alerts
+      - alert: HighErrorRate
+        expr: |
+          sum by (job) (rate({__name__=~".*http_requests_total",status=~"5.."}[1m]))
+          /
+          sum by (job) (rate({__name__=~".*http_requests_total"}[1m]))
+          > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          type: errors
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} error rate is {{ $value | humanizePercentage }}"
+
+      # Cache Performance Alerts
+      - alert: LowCacheHitRate
+        expr: |
+          (
+            rate(weather_service_cache_hits_total[5m])
+            /
+            (rate(weather_service_cache_hits_total[5m]) + rate(weather_service_cache_misses_total[5m]))
+          ) < 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: weather-service
+          type: performance
+        annotations:
+          summary: "Weather service cache hit rate is low"
+          description: "Cache hit rate is {{ $value | humanizePercentage }} (threshold: 50%)"
+
+      # Service Down Alerts
+      - alert: ServiceDown
+        expr: up{job=~".*-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          type: availability
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been unreachable for 1 minute"
+
+      - alert: PrometheusDown
+        expr: up{job="prometheus"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          type: monitoring
+        annotations:
+          summary: "Prometheus is down"
+          description: "Prometheus monitoring system is unreachable"
+
+      # Resource Usage Alerts (Node.js weather service)
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes{job="weather-service"} > 200000000
+        for: 5m
+        labels:
+          severity: warning
+          service: weather-service
+          type: resources
+        annotations:
+          summary: "High memory usage on {{ $labels.job }}"
+          description: "Memory usage is {{ $value | humanize }}B (threshold: 200MB)"
+
+      # Dashboard Service Upstream Latency
+      - alert: UpstreamServiceSlow
+        expr: |
+          rate(dashboard_service_upstream_request_duration_seconds_sum[1m])
+          /
+          rate(dashboard_service_upstream_request_duration_seconds_count[1m])
+          > 1
+        for: 3m
+        labels:
+          severity: warning
+          type: performance
+        annotations:
+          summary: "Slow upstream service call from dashboard"
+          description: "Service {{ $labels.service }} taking {{ $value }}s on average"
+
+      # No Traffic Alert (potential issue)
+      - alert: NoTraffic
+        expr: sum by (job) (rate({__name__=~".*http_requests_total"}[5m])) == 0
+        for: 5m
+        labels:
+          severity: info
+          type: traffic
+        annotations:
+          summary: "No traffic on {{ $labels.job }}"
+          description: "{{ $labels.job }} has received no requests in the last 5 minutes"

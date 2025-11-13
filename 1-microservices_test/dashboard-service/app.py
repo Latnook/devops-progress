@@ -1,8 +1,29 @@
 from flask import Flask, jsonify, render_template_string
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+import time
 
 app = Flask(__name__)
+
+# Prometheus metrics
+REQUEST_COUNT = Counter(
+    'dashboard_service_http_requests_total',
+    'Total HTTP requests',
+    ['endpoint', 'method', 'status']
+)
+
+REQUEST_DURATION = Histogram(
+    'dashboard_service_http_request_duration_seconds',
+    'HTTP request latency',
+    ['endpoint', 'method']
+)
+
+UPSTREAM_REQUEST_DURATION = Histogram(
+    'dashboard_service_upstream_request_duration_seconds',
+    'Upstream service request latency',
+    ['service']
+)
 
 TIME_SERVICE_URL = 'http://time-service:5001/api/time'
 SYSINFO_SERVICE_URL = 'http://system-info-service:5002/api/sysinfo'
@@ -177,14 +198,19 @@ HTML_TEMPLATE = '''
 
 def fetch_service(service_name, url, timeout, default_error):
     """Helper function to fetch data from a service"""
+    start_time = time.time()
     try:
         response = requests.get(url, timeout=timeout)
+        UPSTREAM_REQUEST_DURATION.labels(service=service_name).observe(time.time() - start_time)
         return service_name, response.json()
     except Exception as e:
+        UPSTREAM_REQUEST_DURATION.labels(service=service_name).observe(time.time() - start_time)
         return service_name, default_error(e)
 
 @app.route('/', methods=['GET'])
 def dashboard():
+    start_time = time.time()
+
     # Define services to call with their configurations
     services = [
         ('time', TIME_SERVICE_URL, 3, lambda e: {'service': 'time-service', 'timestamp': f'Error: {str(e)}'}),
@@ -201,6 +227,9 @@ def dashboard():
         for future in as_completed(futures):
             service_name, data = future.result()
             results[service_name] = data
+
+    REQUEST_DURATION.labels(endpoint='/', method='GET').observe(time.time() - start_time)
+    REQUEST_COUNT.labels(endpoint='/', method='GET', status='200').inc()
 
     return render_template_string(
         HTML_TEMPLATE,
@@ -239,6 +268,10 @@ def time_proxy():
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'healthy'})
+
+@app.route('/metrics', methods=['GET'])
+def metrics():
+    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

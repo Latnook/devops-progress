@@ -4,9 +4,9 @@ FROM golang:1.21-alpine AS builder
 WORKDIR /app
 
 COPY go.mod ./
-RUN go mod download
-
 COPY main.go ./
+RUN go mod tidy && go mod download
+
 RUN go build -o time-service main.go
 
 # Runtime stage

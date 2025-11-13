@@ -3,11 +3,28 @@ import socket
 import platform
 import os
 import psutil
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+import time
 
 app = Flask(__name__)
 
+# Prometheus metrics
+REQUEST_COUNT = Counter(
+    'system_info_service_http_requests_total',
+    'Total HTTP requests',
+    ['endpoint', 'method', 'status']
+)
+
+REQUEST_DURATION = Histogram(
+    'system_info_service_http_request_duration_seconds',
+    'HTTP request latency',
+    ['endpoint', 'method']
+)
+
 @app.route('/api/sysinfo', methods=['GET'])
 def get_system_info():
+    start_time = time.time()
+
     # Get host hostname from environment variable, or fall back to container hostname
     hostname = os.environ.get('HOST_HOSTNAME', socket.gethostname())
     container_hostname = socket.gethostname()
@@ -30,11 +47,20 @@ def get_system_info():
         'memory_percent': psutil.virtual_memory().percent
     }
 
+    # Record metrics
+    duration = time.time() - start_time
+    REQUEST_DURATION.labels(endpoint='/api/sysinfo', method='GET').observe(duration)
+    REQUEST_COUNT.labels(endpoint='/api/sysinfo', method='GET', status='200').inc()
+
     return jsonify(system_info)
 
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'healthy'})
+
+@app.route('/metrics', methods=['GET'])
+def metrics():
+    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5002)
