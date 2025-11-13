@@ -2,17 +2,32 @@
 
 A demonstration of **polyglot microservices architecture** using Docker, Docker Compose, and multiple programming languages (Go, Node.js, Python), showcasing how different languages can work together seamlessly through REST APIs.
 
-**Latest Update: 2025-11-13** - Converted to polyglot architecture with Go, Node.js, and Python services!
+**Latest Update: 2025-11-13** - Added Prometheus monitoring, Grafana dashboards, and alerting system!
 
 ## Architecture
 
 This project demonstrates a microservices architecture with four independent services:
 
 ```
-┌─────────────────────┐
-│  Dashboard Service  │ ← Main entry point (Port 5000)
-│   (Aggregator)      │
-└──────────┬──────────┘
+                  ┌──────────────┐
+                  │   Grafana    │ ← Visualization (Port 3000)
+                  │  (Dashboard) │
+                  └──────┬───────┘
+                         │
+                  ┌──────▼───────┐
+                  │  Prometheus  │ ← Metrics Collection (Port 9090)
+                  │  (Monitoring)│
+                  └──────┬───────┘
+                         │ Scrapes metrics every 15s
+        ┌────────────────┼────────────────┬────────────────┐
+        │                │                │                │
+        ▼                ▼                ▼                ▼
+┌─────────────────────┐ │                │                │
+│  Dashboard Service  │◄┘ Main entry     │                │
+│   (Aggregator)      │   point          │                │
+└──────────┬──────────┘   (Port 5000)    │                │
+           │                              │                │
+           ├──────────────────────────────┴────────────────┘
            │
            ├─────────────────┬─────────────────┐
            │                 │                 │
@@ -20,8 +35,12 @@ This project demonstrates a microservices architecture with four independent ser
   ┌─────────────┐   ┌──────────────┐   ┌──────────────┐
   │Time Service │   │System Info   │   │Weather Service│
   │ (Port 5001) │   │Service       │   │  (Port 5003) │
-  │             │   │(Port 5002)   │   │              │
+  │   (Go)      │   │(Port 5002)   │   │  (Node.js)   │
+  │             │   │  (Python)    │   │              │
   └─────────────┘   └──────────────┘   └──────────────┘
+        │                   │                   │
+        └───────────────────┴───────────────────┘
+                    Expose /metrics endpoints
 ```
 
 ### Services:
@@ -61,9 +80,23 @@ This project demonstrates a microservices architecture with four independent ser
    - **Parallel API calls**: Uses ThreadPoolExecutor for concurrent requests
    - **Why Python?** Flask makes it easy to build web UIs and aggregate data
 
+5. **Prometheus** (port 9090) - **Monitoring System** 📊
+   - Collects metrics from all services every 15 seconds
+   - Stores time-series data for performance analysis
+   - Evaluates 11 alert rules for system health
+   - Provides PromQL query interface
+   - **Why Prometheus?** Industry standard for containerized application monitoring
+
+6. **Grafana** (port 3000) - **Visualization Platform** 📈
+   - Beautiful dashboards for metrics visualization
+   - Pre-configured "Microservices Overview Dashboard"
+   - Real-time graphs updating every 5 seconds
+   - Custom alerting and notifications
+   - **Why Grafana?** Best-in-class visualization for Prometheus metrics
+
 ## Key Microservices Concepts Demonstrated
 
-- **Polyglot Architecture** ⭐ **NEW (2025-11-13)**: Services written in Go, Node.js, and Python working together
+- **Polyglot Architecture** ⭐ Services written in Go, Node.js, and Python working together
 - **Language-Agnostic Communication**: REST APIs allow different languages to communicate seamlessly
 - **Service Independence**: Each service runs in its own container with its own runtime
 - **API Communication**: Services communicate via REST APIs using JSON
@@ -79,6 +112,11 @@ This project demonstrates a microservices architecture with four independent ser
 - **Performance Optimization**: Parallel API calls, intelligent caching, and reduced timeouts
 - **Asynchronous Operations**: Using ThreadPoolExecutor for concurrent service calls
 - **Best Tool for the Job**: Each service uses the language best suited for its task
+- **Observability** ⭐ **NEW (2025-11-13)**: Prometheus metrics collection and Grafana visualization
+- **Alerting System**: 11 configured alerts monitoring performance, traffic, errors, and availability
+- **Metrics Instrumentation**: All services expose /metrics endpoints with custom metrics
+- **Load Testing**: Traffic generation script with 5 modes (balanced, spike, burst, heavy, stress)
+- **Production Monitoring**: Industry-standard monitoring stack ready for production use
 
 ## Polyglot Microservices Architecture (Added: 2025-11-13)
 
@@ -284,6 +322,71 @@ setInterval(updateTime, 1000);
 - **Real-time UX**: Users see live updates without manual refresh
 - **Resilience Testing**: Watch the status indicator turn red when you stop a service
 
+## Monitoring & Observability (Added: 2025-11-13)
+
+This project includes a **complete monitoring stack** with Prometheus and Grafana for production-ready observability.
+
+### Features
+
+**Metrics Collection:**
+- All 4 services instrumented with Prometheus client libraries
+- Custom metrics: HTTP requests, latency histograms, cache performance
+- System metrics: CPU, memory, process stats
+- Automatic scraping every 15 seconds
+
+**Visualization:**
+- Pre-built Grafana dashboard with 11 panels
+- Request rates, latency percentiles (p50, p95, p99)
+- Cache hit rates and performance graphs
+- Auto-refresh every 5 seconds
+
+**Alerting:**
+- 11 configured alert rules
+- Performance alerts: High latency, slow upstream services
+- Traffic alerts: Request spikes, high request rates
+- Error alerts: High error rates (>5%)
+- Availability alerts: Service down detection
+- Resource alerts: High memory usage, low cache hit rates
+
+**Traffic Generation:**
+- Built-in traffic generator with 5 modes
+- Balanced, spike, burst, heavy, and stress test modes
+- Configurable duration and request rate
+- Perfect for testing autoscaling and alerting
+
+### Quick Start Monitoring
+
+1. **Access Dashboards:**
+   - Grafana: http://localhost:3000 (admin/admin)
+   - Prometheus: http://localhost:9090
+   - Metrics endpoints: http://localhost:500X/metrics
+
+2. **View Pre-built Dashboard:**
+   - Login to Grafana → Dashboards → "Microservices Overview Dashboard"
+
+3. **Generate Traffic:**
+   ```bash
+   # Gentle load for testing (recommended)
+   ./scripts/generate-traffic.sh -m balanced -d 60 -r 10
+
+   # Traffic spike to trigger alerts
+   ./scripts/generate-traffic.sh -m spike -r 20 -d 90
+   ```
+
+4. **View Alerts:**
+   - Prometheus UI: http://localhost:9090/alerts
+   - Or check via API: `curl http://localhost:9090/api/v1/alerts`
+
+**For detailed monitoring documentation, see [MONITORING.md](MONITORING.md)**
+
+### Windows Compatibility
+
+✅ **Monitoring stack is fully cross-platform!**
+- Prometheus and Grafana work identically on Windows, Linux, and macOS
+- Traffic generator script requires bash (use Git Bash on Windows or WSL)
+- Alternative: Generate traffic manually with PowerShell or browser tools
+- All dashboards and metrics work regardless of platform
+
 ## Prerequisites
 
 You need to install the following on your computer:
@@ -341,12 +444,26 @@ This command will:
 - The status indicator shows green when services are live
 - Click "Refresh Data" to reload all other service data
 
+**Monitoring Dashboards** ⭐ **NEW**:
+- **Grafana**: http://localhost:3000 (login: admin/admin)
+  - View "Microservices Overview Dashboard"
+  - Real-time metrics, graphs, and performance data
+- **Prometheus**: http://localhost:9090
+  - Query metrics directly with PromQL
+  - View active alerts and targets
+
 **Individual Service APIs**:
 - Time Service: http://localhost:5001/api/time
 - System Info Service: http://localhost:5002/api/sysinfo
 - Weather Service: http://localhost:5003/api/weather
 - Dashboard API (aggregated): http://localhost:5000/api/aggregate
 - Time Proxy (for browser polling): http://localhost:5000/api/time-proxy
+
+**Metrics Endpoints**:
+- Time Service: http://localhost:5001/metrics
+- System Info Service: http://localhost:5002/metrics
+- Weather Service: http://localhost:5003/metrics
+- Dashboard Service: http://localhost:5000/metrics
 
 ### Step 4: Stop the services
 Press `Ctrl+C` in the terminal, then run:
@@ -416,23 +533,33 @@ weather_response = requests.get('http://weather-service:5003/api/weather')
 ```
 1-microservices_test/
 ├── time-service/               [Go Service]
-│   ├── main.go                # Go HTTP server
+│   ├── main.go                # Go HTTP server with Prometheus metrics
 │   ├── go.mod                 # Go module definition
 │   └── Dockerfile             # Multi-stage build for Go
 ├── system-info-service/        [Python Service]
 │   ├── app.py                 # Flask application with psutil
 │   ├── Dockerfile             # Python container
-│   └── requirements.txt       # Python dependencies
+│   └── requirements.txt       # Python dependencies + prometheus-client
 ├── weather-service/            [Node.js Service]
-│   ├── server.js              # Express server with axios
+│   ├── server.js              # Express server with axios + prom-client
 │   ├── package.json           # npm dependencies
 │   └── Dockerfile             # Node.js container
 ├── dashboard-service/          [Python Service]
 │   ├── app.py                 # Flask aggregator with web UI
 │   ├── Dockerfile             # Python container
-│   └── requirements.txt       # Flask and requests
-├── docker-compose.yml         # Orchestrates all polyglot services
-└── README.md                  # This file
+│   └── requirements.txt       # Flask, requests + prometheus-client
+├── monitoring/                 [Monitoring Stack] ⭐ NEW
+│   ├── prometheus.yml         # Prometheus configuration
+│   ├── alert-rules.yml        # 11 alert rules
+│   └── grafana/
+│       └── provisioning/
+│           ├── datasources/   # Auto-configured Prometheus datasource
+│           └── dashboards/    # Pre-built microservices dashboard
+├── scripts/                    [Utilities] ⭐ NEW
+│   └── generate-traffic.sh    # Traffic generation tool (5 modes)
+├── docker-compose.yml          # Orchestrates all services + monitoring
+├── README.md                   # This file
+└── MONITORING.md               # Detailed monitoring documentation ⭐ NEW
 
 Note: Legacy Python files (app.py in time/weather services) are kept for reference
 but are not used in the current polyglot architecture.
@@ -564,8 +691,11 @@ Try these to learn more:
 
 ## Next Steps
 
-1. Learn about **service discovery** (Consul, Eureka)
-2. Learn about **API gateways** (Kong, Nginx)
-3. Learn about **container orchestration** (Kubernetes)
-4. Learn about **monitoring and logging** (Prometheus, ELK stack)
-5. Learn about **message queues** (RabbitMQ, Kafka) for async communication
+1. ✅ ~~Learn about **monitoring and logging** (Prometheus, Grafana)~~ - **DONE!**
+2. Learn about **service discovery** (Consul, Eureka)
+3. Learn about **API gateways** (Kong, Nginx)
+4. Learn about **container orchestration** (Kubernetes) - Deploy this to K8s!
+5. Learn about **logging aggregation** (ELK stack, Loki)
+6. Learn about **message queues** (RabbitMQ, Kafka) for async communication
+7. Learn about **distributed tracing** (Jaeger, Zipkin)
+8. Learn about **service mesh** (Istio, Linkerd)

@@ -22,6 +22,7 @@ This document explains how to use the Prometheus monitoring and Grafana visualiz
 
 Use the built-in traffic generator to populate metrics and test alerting:
 
+**Linux/macOS (Bash):**
 ```bash
 # Balanced traffic for 60 seconds at 5 req/s
 ./scripts/generate-traffic.sh -d 60 -r 5 -m balanced
@@ -35,9 +36,26 @@ Use the built-in traffic generator to populate metrics and test alerting:
 # Heavy sustained load
 ./scripts/generate-traffic.sh -m heavy -r 20 -d 180
 
-# Stress test to trigger alerts
+# Stress test to trigger alerts (⚠️ can overwhelm system!)
 ./scripts/generate-traffic.sh -m stress -d 300
 ```
+
+**Windows (PowerShell):**
+```powershell
+# Balanced traffic for 60 seconds at 5 req/s
+.\scripts\generate-traffic.ps1 -Duration 60 -Rate 5 -Mode balanced
+
+# Traffic spike
+.\scripts\generate-traffic.ps1 -Mode spike -Rate 50
+
+# Periodic bursts
+.\scripts\generate-traffic.ps1 -Mode burst -Duration 120
+
+# Heavy sustained load
+.\scripts\generate-traffic.ps1 -Mode heavy -Rate 20 -Duration 180
+```
+
+**Note:** The PowerShell version does not include "stress" mode to prevent system overwhelm on Windows.
 
 ### Traffic Modes Explained
 
