@@ -1,8 +1,39 @@
 const express = require('express');
 const axios = require('axios');
+const promClient = require('prom-client');
 
 const app = express();
 const PORT = 5003;
+
+// Prometheus metrics
+const register = new promClient.Registry();
+promClient.collectDefaultMetrics({ register });
+
+const httpRequestsTotal = new promClient.Counter({
+    name: 'weather_service_http_requests_total',
+    help: 'Total HTTP requests',
+    labelNames: ['endpoint', 'method', 'status'],
+    registers: [register]
+});
+
+const httpRequestDuration = new promClient.Histogram({
+    name: 'weather_service_http_request_duration_seconds',
+    help: 'HTTP request latency',
+    labelNames: ['endpoint', 'method'],
+    registers: [register]
+});
+
+const cacheHits = new promClient.Counter({
+    name: 'weather_service_cache_hits_total',
+    help: 'Total weather cache hits',
+    registers: [register]
+});
+
+const cacheMisses = new promClient.Counter({
+    name: 'weather_service_cache_misses_total',
+    help: 'Total weather cache misses',
+    registers: [register]
+});
 
 // Simple in-memory cache
 const weatherCache = {
@@ -27,16 +58,23 @@ function getCacheAgeSeconds() {
 }
 
 app.get('/api/weather', async (req, res) => {
+    const start = Date.now();
+
     try {
         // Return cached data if still valid
         if (isCacheValid()) {
+            cacheHits.inc();
             const cachedResponse = {
                 ...weatherCache.data,
                 cached: true,
                 cache_age_seconds: getCacheAgeSeconds()
             };
+            httpRequestDuration.labels('/api/weather', 'GET').observe((Date.now() - start) / 1000);
+            httpRequestsTotal.labels('/api/weather', 'GET', '200').inc();
             return res.json(cachedResponse);
         }
+
+        cacheMisses.inc();
 
         // Hardcoded location for Haifa, Israel
         const city = 'Haifa';
@@ -75,6 +113,9 @@ app.get('/api/weather', async (req, res) => {
         weatherCache.data = { ...responseData };
         weatherCache.timestamp = Date.now();
 
+        httpRequestDuration.labels('/api/weather', 'GET').observe((Date.now() - start) / 1000);
+        httpRequestsTotal.labels('/api/weather', 'GET', '200').inc();
+
         res.json(responseData);
     } catch (error) {
         // If we have cached data, return it even if expired during error
@@ -85,8 +126,13 @@ app.get('/api/weather', async (req, res) => {
                 stale: true,
                 error: `Using stale cache due to error: ${error.message}`
             };
+            httpRequestDuration.labels('/api/weather', 'GET').observe((Date.now() - start) / 1000);
+            httpRequestsTotal.labels('/api/weather', 'GET', '200').inc();
             return res.json(staleResponse);
         }
+
+        httpRequestDuration.labels('/api/weather', 'GET').observe((Date.now() - start) / 1000);
+        httpRequestsTotal.labels('/api/weather', 'GET', '500').inc();
 
         res.status(500).json({
             service: 'weather-service',
@@ -98,6 +144,11 @@ app.get('/api/weather', async (req, res) => {
 
 app.get('/health', (req, res) => {
     res.json({ status: 'healthy' });
+});
+
+app.get('/metrics', async (req, res) => {
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
 });
 
 app.listen(PORT, '0.0.0.0', () => {

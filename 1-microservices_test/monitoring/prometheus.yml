@@ -1,0 +1,40 @@
+global:
+  scrape_interval: 15s  # How often to scrape targets
+  evaluation_interval: 15s  # How often to evaluate rules
+
+# Alertmanager configuration (optional, for future use)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Time Service (Go)
+  - job_name: 'time-service'
+    static_configs:
+      - targets: ['time-service:5001']
+    metrics_path: '/metrics'
+
+  # System Info Service (Python)
+  - job_name: 'system-info-service'
+    static_configs:
+      - targets: ['system-info-service:5002']
+    metrics_path: '/metrics'
+
+  # Weather Service (Node.js)
+  - job_name: 'weather-service'
+    static_configs:
+      - targets: ['weather-service:5003']
+    metrics_path: '/metrics'
+
+  # Dashboard Service (Python)
+  - job_name: 'dashboard-service'
+    static_configs:
+      - targets: ['dashboard-service:5000']
+    metrics_path: '/metrics'
