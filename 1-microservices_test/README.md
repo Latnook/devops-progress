@@ -9,38 +9,53 @@ A demonstration of **polyglot microservices architecture** using Docker, Docker 
 This project demonstrates a microservices architecture with four independent services:
 
 ```
-                  ┌──────────────┐
-                  │   Grafana    │ ← Visualization (Port 3000)
-                  │  (Dashboard) │
-                  └──────┬───────┘
-                         │
-                  ┌──────▼───────┐
-                  │  Prometheus  │ ← Metrics Collection (Port 9090)
-                  │  (Monitoring)│
-                  └──────┬───────┘
-                         │ Scrapes metrics every 15s
-        ┌────────────────┼────────────────┬────────────────┐
-        │                │                │                │
-        ▼                ▼                ▼                ▼
-┌─────────────────────┐ │                │                │
-│  Dashboard Service  │◄┘ Main entry     │                │
-│   (Aggregator)      │   point          │                │
-└──────────┬──────────┘   (Port 5000)    │                │
-           │                              │                │
-           ├──────────────────────────────┴────────────────┘
-           │
-           ├─────────────────┬─────────────────┐
-           │                 │                 │
-           ▼                 ▼                 ▼
-  ┌─────────────┐   ┌──────────────┐   ┌──────────────┐
-  │Time Service │   │System Info   │   │Weather Service│
-  │ (Port 5001) │   │Service       │   │  (Port 5003) │
-  │   (Go)      │   │(Port 5002)   │   │  (Node.js)   │
-  │             │   │  (Python)    │   │              │
-  └─────────────┘   └──────────────┘   └──────────────┘
-        │                   │                   │
-        └───────────────────┴───────────────────┘
-                    Expose /metrics endpoints
+┌─────────────────────────────────────────────────────────────────────┐
+│                        APPLICATION LAYER                            │
+│                                                                     │
+│  ┌─────────────────────┐                                            │
+│  │  Dashboard Service  │ ← Main entry point (Port 5000)             │
+│  │   (Aggregator)      │   Web UI + REST API                        │
+│  │     (Python)        │                                            │
+│  └──────────┬──────────┘                                            │
+│             │                                                       │
+│             │  Aggregates data from:                                │
+│             │                                                       │
+│             ├─────────────────┬─────────────────┐                   │
+│             │                 │                 │                   │
+│             ▼                 ▼                 ▼                   │
+│    ┌─────────────┐   ┌──────────────┐   ┌─────────────-─┐           │
+│    │Time Service │   │System Info   │   │Weather Service│           │
+│    │(Port 5001)  │   │Service       │   │  (Port 5003)  │           │
+│    │   (Go)      │   │(Port 5002)   │   │  (Node.js)    │           │
+│    │             │   │  (Python)    │   │               │           │
+│    └──────┬──────┘   └──────┬───────┘   └──────┬──────-─┘           │
+│           │                 │                  │                    │
+│           └─────────────────┴──────────────────┘                    │
+│                             │                                       │
+└─────────────────────────────┼────────────────────────────────────-──┘
+                              │
+                              │ Expose /metrics endpoints
+                              │
+                ┌─────────────┴─────────────┐
+                │ (Prometheus scrapes here) │
+                └─────────────┬─────────────┘
+                              │
+┌─────────────────────────────┼────────────────────────-──────────────┐
+│                    OBSERVABILITY LAYER                              │
+│                             │                                       │
+│                      ┌──────▼───────┐                               │
+│                      │  Prometheus  │ ← Metrics Collection          │
+│                      │ (Port 9090)  │   Scrapes every 15s           │
+│                      └──────┬───────┘                               │
+│                             │                                       │
+│                             │ Stores time-series data               │
+│                             │                                       │
+│                      ┌──────▼───────┐                               │
+│                      │   Grafana    │ ← Visualization               │
+│                      │ (Port 3000)  │   Dashboards & Alerts         │
+│                      └──────────────┘                               │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Services:
