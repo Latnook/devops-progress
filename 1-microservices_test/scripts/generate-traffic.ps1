@@ -129,7 +129,7 @@ function Start-SpikeTraffic {
         Start-Sleep -Seconds 1
     }
 
-    Write-Host "💥 SPIKE! Sending high traffic burst..." -ForegroundColor Red
+    Write-Host ">> SPIKE! Sending high traffic burst..." -ForegroundColor Red
 
     # Phase 2: Spike - High traffic burst for middle 50% of duration
     # Simulates sudden load increase (10x normal traffic)
