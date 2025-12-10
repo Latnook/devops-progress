@@ -535,12 +535,14 @@ def health():
     return jsonify({'status': 'healthy'})
 
 @app.route('/metrics', methods=['GET'])
+@limiter.exempt  # Exempt from rate limiting for Prometheus scraping
 def metrics():
     """
     Prometheus metrics endpoint.
 
     Exposes all collected Prometheus metrics in a format that can be scraped
     by Prometheus server for monitoring and alerting.
+    Exempt from rate limiting to allow frequent Prometheus scrapes.
 
     Returns:
         Response: Prometheus-formatted metrics in plain text
