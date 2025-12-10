@@ -1,18 +1,36 @@
+# Environment files with secrets
+.env
+
+# Secrets directory
+secrets/
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
 venv/
-ENV/
+env/
 *.egg-info/
-dist/
-build/
+
+# Node
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# Go
+*.exe
+*.test
+*.out
+go.sum
 
 # Docker
-.dockerignore
+.docker/
+
+# Logs
+*.log
+logs/
 
 # IDE
 .vscode/
