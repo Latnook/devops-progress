@@ -14,15 +14,88 @@ The service is useful for:
 Includes Prometheus metrics for monitoring request patterns and latency.
 """
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import socket
 import platform
 import os
 import psutil
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 import time
+import logging
+import re
+from functools import wraps
+
+# Configure logging with security events
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+security_logger = logging.getLogger('security')
+security_logger.setLevel(logging.WARNING)
 
 app = Flask(__name__)
+
+# Security Configuration
+app.config['DEBUG'] = False
+app.config['TESTING'] = False
+
+# API Key for authentication
+API_KEY = os.environ.get('API_KEY', 'development-key-change-in-production')
+
+if API_KEY == 'development-key-change-in-production':
+    logger.warning("⚠️  WARNING: Using default API key. Set API_KEY environment variable for production!")
+
+# ============================================================================
+# Security: Authentication and Input Validation
+# ============================================================================
+
+def require_api_key(f):
+    """
+    Decorator to require API key authentication for endpoints.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get('X-API-Key')
+
+        if not auth_header:
+            security_logger.warning(f'Missing API key from {request.remote_addr} to {request.endpoint}')
+            return jsonify({'error': 'Unauthorized', 'message': 'API key required'}), 401
+
+        if auth_header != API_KEY:
+            security_logger.warning(f'Invalid API key from {request.remote_addr} to {request.endpoint}')
+            return jsonify({'error': 'Unauthorized', 'message': 'Invalid API key'}), 401
+
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def sanitize_hostname(hostname):
+    """
+    Sanitize hostname to prevent injection attacks.
+    Only allows alphanumeric characters, dots, hyphens, and underscores.
+    """
+    if not hostname:
+        return 'unknown'
+
+    # Remove any potentially dangerous characters
+    sanitized = re.sub(r'[^a-zA-Z0-9._-]', '', hostname)
+
+    # Limit length to prevent buffer overflow
+    return sanitized[:255] if sanitized else 'unknown'
+
+
+@app.after_request
+def add_security_headers(response):
+    """
+    Add security headers to all responses.
+    """
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    return response
+
 
 # ============================================================================
 # Prometheus Metrics Configuration
@@ -45,7 +118,15 @@ REQUEST_DURATION = Histogram(
     ['endpoint', 'method']
 )
 
+# Counter: Track authentication failures
+AUTH_FAILURES = Counter(
+    'system_info_service_auth_failures_total',
+    'Total authentication failures',
+    ['endpoint', 'reason']
+)
+
 @app.route('/api/sysinfo', methods=['GET'])
+@require_api_key
 def get_system_info():
     """
     Collects and returns comprehensive system information.
@@ -53,6 +134,8 @@ def get_system_info():
     This endpoint gathers information about both the host machine and the
     container it's running in. It uses environment variables to distinguish
     between the host hostname and container hostname when running in Docker.
+
+    Requires API key authentication via X-API-Key header.
 
     The response includes:
     - Platform details (OS type, version, architecture)
@@ -73,8 +156,9 @@ def get_system_info():
 
     # Get host hostname from environment variable, or fall back to container hostname
     # Docker Compose can set HOST_HOSTNAME to the actual host machine name
-    hostname = os.environ.get('HOST_HOSTNAME', socket.gethostname())
-    container_hostname = socket.gethostname()
+    # Sanitize hostnames to prevent injection attacks
+    hostname = sanitize_hostname(os.environ.get('HOST_HOSTNAME', socket.gethostname()))
+    container_hostname = sanitize_hostname(socket.gethostname())
 
     # Gather detailed system information using platform and psutil libraries
     system_info = {

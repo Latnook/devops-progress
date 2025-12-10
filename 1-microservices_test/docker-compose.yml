@@ -1,72 +1,126 @@
+version: '3.8'
+
 services:
   # Time Service - Written in Go
   time-service:
     build: ./time-service
     container_name: time-service
     ports:
-      - "5001:5001"
+      - "127.0.0.1:5001:5001"  # Bind to localhost only for security
     networks:
       - microservices-network
+    environment:
+      - API_KEY=${API_KEY:-development-key-change-in-production}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5001/health"]
+      interval: 10s
+      timeout: 3s
       retries: 3
+      start_period: 10s
+    restart: unless-stopped
 
   # System Info Service - Written in Python
   system-info-service:
     build: ./system-info-service
     container_name: system-info-service
     ports:
-      - "5002:5002"
+      - "127.0.0.1:5002:5002"  # Bind to localhost only for security
     networks:
       - microservices-network
     environment:
       - HOST_HOSTNAME=${HOSTNAME:-${COMPUTERNAME:-localhost}}
+      - API_KEY=${API_KEY:-development-key-change-in-production}
+      - SYSINFO_SECRET_KEY=${SYSINFO_SECRET_KEY}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5002/health"]
+      interval: 10s
+      timeout: 3s
       retries: 3
+      start_period: 15s
+    restart: unless-stopped
 
   # Weather Service - Written in Node.js
   weather-service:
     build: ./weather-service
     container_name: weather-service
     ports:
-      - "5003:5003"
+      - "127.0.0.1:5003:5003"  # Bind to localhost only for security
     networks:
       - microservices-network
+    environment:
+      - API_KEY=${API_KEY:-development-key-change-in-production}
+      - NODE_ENV=production
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5003/health"]
+      interval: 10s
+      timeout: 3s
       retries: 3
+      start_period: 15s
+    restart: unless-stopped
 
   # Dashboard Service - Written in Python
   dashboard-service:
     build: ./dashboard-service
     container_name: dashboard-service
     ports:
-      - "5000:5000"
+      - "5000:5000"  # Main entry point, can be exposed (protected by auth)
     networks:
       - microservices-network
+    environment:
+      - API_KEY=${API_KEY:-development-key-change-in-production}
+      - DASHBOARD_SECRET_KEY=${DASHBOARD_SECRET_KEY}
+      - HTTPS_ENABLED=${HTTPS_ENABLED:-False}
+      - FLASK_ENV=production
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     depends_on:
       - time-service
       - system-info-service
       - weather-service
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 3s
       retries: 3
+      start_period: 20s
+    restart: unless-stopped
 
   # Prometheus - Metrics Collection
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.48.0  # Pin to specific version for security
     container_name: prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"  # Bind to localhost only for security
     networks:
       - microservices-network
     volumes:
@@ -79,23 +133,41 @@ services:
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     restart: unless-stopped
 
   # Grafana - Metrics Visualization
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:10.2.3  # Pin to specific version for security
     container_name: grafana
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"  # Bind to localhost only for security
     networks:
       - microservices-network
     volumes:
       - grafana-data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme-strong-password}
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION=false
+      - GF_INSTALL_PLUGINS=
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     depends_on:
       - prometheus
     restart: unless-stopped

@@ -12,9 +12,19 @@ RUN go build -o time-service main.go
 # Runtime stage
 FROM alpine:latest
 
+# Create non-root user for security
+RUN addgroup -S appuser && adduser -S appuser -G appuser
+
 WORKDIR /app
 
+# Copy binary from builder stage
 COPY --from=builder /app/time-service .
+
+# Change ownership to non-root user
+RUN chown appuser:appuser time-service
+
+# Switch to non-root user
+USER appuser
 
 EXPOSE 5001
 

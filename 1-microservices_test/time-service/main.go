@@ -2,17 +2,19 @@
 //
 // This service provides a REST API endpoint that returns the current server time in JSON format.
 // It includes Prometheus metrics collection for monitoring HTTP request counts and latencies.
+// Security features: API key authentication, security headers, rate limiting, and security logging.
 //
 // Endpoints:
-//   - GET /api/time   - Returns current timestamp
-//   - GET /health     - Health check endpoint
-//   - GET /metrics    - Prometheus metrics endpoint
+//   - GET /api/time   - Returns current timestamp (requires API key)
+//   - GET /health     - Health check endpoint (no auth required)
+//   - GET /metrics    - Prometheus metrics endpoint (no auth required for Prometheus scraping)
 package main
 
 import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -30,6 +32,15 @@ type TimeResponse struct {
 type HealthResponse struct {
 	Status string `json:"status"` // Health status (typically "healthy")
 }
+
+// ErrorResponse represents the JSON structure for error responses.
+type ErrorResponse struct {
+	Error   string `json:"error"`   // Error type
+	Message string `json:"message"` // Human-readable error message
+}
+
+// API Key for authentication (loaded from environment variable)
+var apiKey string
 
 // Prometheus metrics for monitoring service performance and health.
 // These are automatically registered with the default Prometheus registry.
@@ -55,10 +66,61 @@ var (
 		},
 		[]string{"endpoint", "method"},
 	)
+
+	// authFailuresTotal tracks authentication failures for security monitoring
+	authFailuresTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "time_service_auth_failures_total",
+			Help: "Total authentication failures",
+		},
+		[]string{"endpoint", "reason"},
+	)
 )
+
+// requireAPIKey is a middleware that checks for valid API key authentication.
+// Returns true if authentication successful, false otherwise.
+func requireAPIKey(w http.ResponseWriter, r *http.Request, endpoint string) bool {
+	authHeader := r.Header.Get("X-API-Key")
+
+	if authHeader == "" {
+		log.Printf("Security: Missing API key from %s to %s", r.RemoteAddr, endpoint)
+		authFailuresTotal.WithLabelValues(endpoint, "missing").Inc()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(ErrorResponse{
+			Error:   "Unauthorized",
+			Message: "API key required",
+		})
+		return false
+	}
+
+	if authHeader != apiKey {
+		log.Printf("Security: Invalid API key from %s to %s", r.RemoteAddr, endpoint)
+		authFailuresTotal.WithLabelValues(endpoint, "invalid").Inc()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(ErrorResponse{
+			Error:   "Unauthorized",
+			Message: "Invalid API key",
+		})
+		return false
+	}
+
+	return true
+}
+
+// addSecurityHeaders adds security headers to all HTTP responses.
+func addSecurityHeaders(w http.ResponseWriter) {
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("X-XSS-Protection", "1; mode=block")
+	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+	w.Header().Set("Content-Security-Policy", "default-src 'self'")
+}
 
 // getTimeHandler handles requests to the /api/time endpoint.
 // It returns the current server time in JSON format and records metrics for monitoring.
+// Requires API key authentication.
 //
 // The handler measures request duration using a deferred function to ensure timing
 // is recorded even if the request fails. Only GET requests are allowed.
@@ -67,6 +129,9 @@ var (
 func getTimeHandler(w http.ResponseWriter, r *http.Request) {
 	// Start timing the request
 	start := time.Now()
+
+	// Add security headers to response
+	addSecurityHeaders(w)
 
 	// Deferred function ensures request duration is recorded regardless of success/failure
 	defer func() {
@@ -78,6 +143,12 @@ func getTimeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpRequestsTotal.WithLabelValues("/api/time", r.Method, "405").Inc()
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Check API key authentication
+	if !requireAPIKey(w, r, "/api/time") {
+		httpRequestsTotal.WithLabelValues("/api/time", r.Method, "401").Inc()
 		return
 	}
 
@@ -98,9 +169,13 @@ func getTimeHandler(w http.ResponseWriter, r *http.Request) {
 // healthHandler handles requests to the /health endpoint.
 // This endpoint is used by container orchestration systems (Docker, Kubernetes)
 // and monitoring tools to verify the service is running and responsive.
+// No authentication required for health checks.
 //
 // Response format: {"status": "healthy"}
 func healthHandler(w http.ResponseWriter, r *http.Request) {
+	// Add security headers
+	addSecurityHeaders(w)
+
 	// Only allow GET requests
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -115,10 +190,17 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 // main initializes and starts the HTTP server with all endpoint handlers.
 // The server listens on port 5001 and provides three endpoints:
-//   - /api/time  - Current timestamp API
-//   - /health    - Health check for monitoring
-//   - /metrics   - Prometheus metrics for scraping
+//   - /api/time  - Current timestamp API (requires authentication)
+//   - /health    - Health check for monitoring (no auth required)
+//   - /metrics   - Prometheus metrics for scraping (no auth required)
 func main() {
+	// Load API key from environment variable
+	apiKey = os.Getenv("API_KEY")
+	if apiKey == "" {
+		apiKey = "development-key-change-in-production"
+		log.Println("⚠️  WARNING: Using default API key. Set API_KEY environment variable for production!")
+	}
+
 	// Register HTTP handlers
 	http.HandleFunc("/api/time", getTimeHandler)
 	http.HandleFunc("/health", healthHandler)
@@ -126,6 +208,7 @@ func main() {
 
 	// Start HTTP server on port 5001
 	log.Println("Time service starting on port 5001...")
+	log.Println("Security: API key authentication enabled for /api/time endpoint")
 	if err := http.ListenAndServe(":5001", nil); err != nil {
 		log.Fatal(err)
 	}

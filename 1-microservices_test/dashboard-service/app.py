@@ -12,13 +12,154 @@ Key features:
 - Fallback error handling for when backend services are unavailable
 """
 
-from flask import Flask, jsonify, render_template_string
+from flask import Flask, jsonify, render_template_string, request
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_talisman import Talisman
 import time
+import logging
+import html
+import os
+import secrets
+from functools import wraps
+from datetime import timedelta
+import re
+
+# Configure secure logging with separate loggers for security events
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+security_logger = logging.getLogger('security')
+security_logger.setLevel(logging.WARNING)
 
 app = Flask(__name__)
+
+# Security: Generate strong secret key for sessions
+app.config['SECRET_KEY'] = os.environ.get('DASHBOARD_SECRET_KEY', secrets.token_hex(32))
+
+# Security: Disable debug mode explicitly
+app.config['DEBUG'] = False
+app.config['TESTING'] = False
+
+# Security: Set secure session configuration
+# Only set SECURE cookie if HTTPS is enabled
+HTTPS_ENABLED = os.environ.get('HTTPS_ENABLED', 'False') == 'True'
+app.config['SESSION_COOKIE_SECURE'] = HTTPS_ENABLED
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'  # Changed from Lax to Strict for better security
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)
+
+# Security: Prevent template auto-reload
+app.config['TEMPLATES_AUTO_RELOAD'] = False
+
+# Security: Set maximum content length (10MB)
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
+
+# API Key for service authentication
+API_KEY = os.environ.get('API_KEY', 'development-key-change-in-production')
+
+# Check if running in production mode
+if API_KEY == 'development-key-change-in-production':
+    logger.warning("⚠️  WARNING: Using default API key. Set API_KEY environment variable for production!")
+
+# Initialize rate limiter to prevent DoS attacks
+# Use Redis for distributed rate limiting if available, otherwise memory
+RATE_LIMIT_ENABLED = os.environ.get('RATE_LIMIT_ENABLED', 'True') == 'True'
+REDIS_URL = os.environ.get('REDIS_URL', 'memory://')
+
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri=REDIS_URL,
+    enabled=RATE_LIMIT_ENABLED
+)
+
+# Initialize Talisman for security headers
+talisman = Talisman(
+    app,
+    force_https=HTTPS_ENABLED,
+    strict_transport_security=HTTPS_ENABLED,
+    strict_transport_security_max_age=31536000,  # 1 year
+    content_security_policy={
+        'default-src': "'self'",
+        'script-src': ["'self'", "'unsafe-inline'"],  # TODO: Move to external JS file with nonce
+        'style-src': ["'self'", "'unsafe-inline'"]   # TODO: Move to external CSS file
+    },
+    content_security_policy_nonce_in=['script-src'],
+    referrer_policy='strict-origin-when-cross-origin',
+    feature_policy={
+        'geolocation': "'none'",
+        'microphone': "'none'",
+        'camera': "'none'"
+    }
+)
+
+# ============================================================================
+# Security: Authentication and Input Validation
+# ============================================================================
+
+def require_api_key(f):
+    """
+    Decorator to require API key authentication for endpoints.
+
+    Checks for X-API-Key header and validates it against configured API_KEY.
+    Logs failed authentication attempts for security monitoring.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get('X-API-Key')
+
+        if not auth_header:
+            security_logger.warning(f'Missing API key from {request.remote_addr} to {request.endpoint}')
+            return jsonify({'error': 'Unauthorized', 'message': 'API key required'}), 401
+
+        if auth_header != API_KEY:
+            security_logger.warning(f'Invalid API key from {request.remote_addr} to {request.endpoint}')
+            return jsonify({'error': 'Unauthorized', 'message': 'Invalid API key'}), 401
+
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def sanitize_output(data):
+    """
+    Sanitize output data to prevent XSS attacks.
+
+    Recursively escapes HTML in string values to prevent injection attacks
+    when data from untrusted sources is displayed in the dashboard.
+    """
+    if isinstance(data, dict):
+        return {key: sanitize_output(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [sanitize_output(item) for item in data]
+    elif isinstance(data, str):
+        return html.escape(data)
+    else:
+        return data
+
+
+def validate_service_url(url):
+    """
+    Validate that service URLs are from allowed internal services only.
+
+    Prevents SSRF attacks by ensuring only whitelisted service hostnames
+    can be accessed through the dashboard proxy.
+    """
+    allowed_hosts = ['time-service', 'system-info-service', 'weather-service']
+
+    # Parse the URL to extract hostname
+    if url.startswith('http://'):
+        hostname = url.split('//')[1].split(':')[0].split('/')[0]
+        return hostname in allowed_hosts
+
+    return False
+
 
 # ============================================================================
 # Prometheus Metrics Configuration
@@ -32,6 +173,13 @@ REQUEST_COUNT = Counter(
     'dashboard_service_http_requests_total',
     'Total HTTP requests',
     ['endpoint', 'method', 'status']
+)
+
+# Counter: Track authentication failures for security monitoring
+AUTH_FAILURES = Counter(
+    'dashboard_service_auth_failures_total',
+    'Total authentication failures',
+    ['endpoint', 'reason']
 )
 
 # Histogram: Measures request duration for this service's endpoints
@@ -237,7 +385,7 @@ def fetch_service(service_name, url, timeout, default_error):
 
     This helper function is designed to be called in parallel using ThreadPoolExecutor.
     It measures the request duration and records it to Prometheus metrics regardless
-    of success or failure.
+    of success or failure. Sanitizes output to prevent XSS attacks.
 
     Args:
         service_name (str): Name of the service for metrics labeling
@@ -251,14 +399,25 @@ def fetch_service(service_name, url, timeout, default_error):
     """
     start_time = time.time()
     try:
-        response = requests.get(url, timeout=timeout)
+        # Validate service URL to prevent SSRF
+        if not validate_service_url(url):
+            logger.error(f'Blocked invalid service URL: {url}')
+            return service_name, default_error('Invalid service URL')
+
+        response = requests.get(url, timeout=timeout, headers={'X-API-Key': API_KEY})
         # Record successful request duration
         UPSTREAM_REQUEST_DURATION.labels(service=service_name).observe(time.time() - start_time)
-        return service_name, response.json()
+
+        # Sanitize response data to prevent XSS
+        data = response.json()
+        sanitized_data = sanitize_output(data)
+        return service_name, sanitized_data
     except Exception as e:
         # Record failed request duration (still important for monitoring)
         UPSTREAM_REQUEST_DURATION.labels(service=service_name).observe(time.time() - start_time)
-        return service_name, default_error(e)
+        logger.error(f'Service {service_name} error: {type(e).__name__}')
+        # Return generic error message without exposing internal details
+        return service_name, default_error('Service temporarily unavailable')
 
 @app.route('/', methods=['GET'])
 def dashboard():
@@ -309,12 +468,15 @@ def dashboard():
     )
 
 @app.route('/api/aggregate', methods=['GET'])
+@require_api_key
+@limiter.limit("100 per minute")
 def aggregate():
     """
     API endpoint that returns aggregated data from all services in JSON format.
 
     Similar to the dashboard endpoint but returns raw JSON instead of HTML.
     Useful for programmatic access or integration with other services.
+    Requires API key authentication via X-API-Key header.
 
     Returns:
         Response: JSON object containing data from all backend services
