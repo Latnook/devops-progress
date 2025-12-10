@@ -2,7 +2,7 @@
 
 A demonstration of **polyglot microservices architecture** using Docker, Docker Compose, and multiple programming languages (Go, Node.js, Python), showcasing how different languages can work together seamlessly through REST APIs.
 
-**Latest Update: 2025-11-13** - Added Prometheus monitoring, Grafana dashboards, and alerting system!
+**Latest Update: 2025-12-10** - Added comprehensive OWASP security controls, API authentication, and production hardening!
 
 ## Architecture
 
@@ -127,13 +127,72 @@ This project demonstrates a microservices architecture with four independent ser
 - **Performance Optimization**: Parallel API calls, intelligent caching, and reduced timeouts
 - **Asynchronous Operations**: Using ThreadPoolExecutor for concurrent service calls
 - **Best Tool for the Job**: Each service uses the language best suited for its task
-- **Observability** ⭐ **NEW (2025-11-13)**: Prometheus metrics collection and Grafana visualization
+- **Observability** ⭐ Prometheus metrics collection and Grafana visualization
 - **Alerting System**: 11 configured alerts monitoring performance, traffic, errors, and availability
 - **Metrics Instrumentation**: All services expose /metrics endpoints with custom metrics
 - **Load Testing**: Traffic generation script with 5 modes (balanced, spike, burst, heavy, stress)
 - **Production Monitoring**: Industry-standard monitoring stack ready for production use
+- **Security** ⭐ **NEW (2025-12-10)**: OWASP Top 10 compliant with comprehensive security controls
 
-## Polyglot Microservices Architecture (Added: 2025-11-13)
+## Security Features (Added: 2025-12-10)
+
+This project demonstrates **enterprise-grade security practices** following OWASP Top 10:2021 guidelines:
+
+### 🔐 Implemented Security Controls
+
+- **API Key Authentication** - All service endpoints require `X-API-Key` header for authorization
+- **Non-Root Containers** - All Docker containers run as unprivileged users (appuser/node)
+- **Production Servers** - Using Gunicorn (Python) and compiled binaries (Go) instead of development servers
+- **Security Headers** - X-Content-Type-Options, X-Frame-Options, CSP, Referrer-Policy on all responses
+- **Input Validation** - Sanitization of hostnames, URL validation to prevent SSRF attacks
+- **Output Encoding** - HTML escaping to prevent XSS attacks
+- **Secrets Management** - Environment-based configuration with strong secret generation script
+- **Security Logging** - Dedicated security logger tracking authentication failures and suspicious activity
+- **Security Monitoring** - Prometheus metrics for failed auth attempts and security events
+- **Rate Limiting** - Flask-Limiter protecting dashboard endpoints from abuse
+- **Network Security** - Services bound to localhost, internal-only communication
+- **Resource Limits** - CPU and memory caps on all containers preventing resource exhaustion
+
+### 🛡️ OWASP Top 10:2021 Compliance
+
+| Category | Status | Implementation |
+|----------|--------|----------------|
+| A01: Broken Access Control | ✅ Fixed | API key authentication, authorization checks |
+| A02: Cryptographic Failures | ✅ Fixed | Secrets management, secure session config |
+| A03: Injection | ✅ Fixed | Input validation, output sanitization, XSS protection |
+| A04: Insecure Design | ✅ Fixed | Rate limiting, error handling, secure defaults |
+| A05: Security Misconfiguration | ✅ Fixed | Non-root users, production servers, security headers |
+| A06: Vulnerable Components | ✅ Monitored | Version pinning, dependency tracking |
+| A07: Authentication Failures | ✅ Fixed | Strong passwords, API keys, session timeouts |
+| A08: Software Integrity | 🔄 Planned | Dependency verification (future) |
+| A09: Logging Failures | ✅ Fixed | Security event logging, audit trails |
+| A10: SSRF | ✅ Fixed | URL validation, request filtering |
+
+### 📚 Security Documentation
+
+- **[SECURITY_AUDIT_REPORT.md](../../SECURITY_AUDIT_REPORT.md)** - Complete audit of 42 security findings with remediation steps
+- **[SECURITY.md](SECURITY.md)** - Comprehensive security guide, authentication examples, production checklist
+- **[.env.example](.env.example)** - Template for secrets configuration
+
+### 🚀 Quick Security Setup
+
+```bash
+# 1. Generate strong secrets (works on Linux/Mac/Windows with Git Bash)
+cd 1-microservices_test/scripts
+./generate-secrets.sh
+
+# 2. Start secure services
+cd ..
+docker-compose up --build
+
+# 3. Test with API key
+API_KEY=$(cat .env | grep ^API_KEY= | cut -d= -f2)
+curl -H "X-API-Key: $API_KEY" http://localhost:5001/api/time
+```
+
+**Note:** This project demonstrates security best practices for learning purposes. For production deployment, enable HTTPS/TLS and follow the production checklist in [SECURITY.md](SECURITY.md).
+
+## Polyglot Microservices Architecture
 
 This project demonstrates a **true polyglot architecture** where services are written in different programming languages but work together seamlessly through REST APIs and Docker containers.
 
