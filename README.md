@@ -12,29 +12,24 @@ This is a hands-on learning repository where I'll be practicing and implementing
 **Status:** ✅ Completed ⭐ **Updated: 2025-11-13**
 **Location:** [`1-microservices_test/`](1-microservices_test/)
 
-A demonstration of **polyglot microservices architecture** featuring services written in **Go, Node.js, and Python** communicating seamlessly via REST APIs:
-- **Time Service** (Go) - Blazing fast compiled service for timestamps
-- **System Info Service** (Python) - Detailed system information using psutil
-- **Weather Service** (Node.js) - Async weather data fetching with caching
-- **Dashboard Service** (Python) - Web UI aggregating all services
-
-**Technologies:** Docker, Docker Compose, Go, Node.js, Python Flask, REST APIs, External API Integration
-
-**Key Concepts Demonstrated:**
-- **Polyglot architecture** - Multiple programming languages working together
-- Language-agnostic communication via REST APIs and JSON
-- Service-to-service communication across different runtimes
-- Multi-stage Docker builds (Go service)
-- Detailed system metrics (CPU cores, memory usage, architecture)
-- Real-time weather integration using wttr.in API
-- Health checks for all services
-- Docker networking and container orchestration
-- Cross-platform compatibility (Windows, Linux, macOS)
-- **Performance optimizations** (parallel API calls, caching, reduced timeouts)
-- Real-time updates with live clock
-- Best tool for the job - each service uses optimal language
+A demonstration of **polyglot microservices architecture** featuring services written in **Go, Node.js, and Python** communicating seamlessly via REST APIs. This project includes service-to-service communication, Docker containerization, and a complete monitoring stack with Prometheus and Grafana.
 
 [View Project →](1-microservices_test/)
+
+### 2. Interactive Linux & Bash Tutorial
+**Status:** ✅ Completed ⭐ **Updated: 2026-01-05**
+**Location:** [`2-linux/`](2-linux/)
+
+A comprehensive, hands-on tutorial for mastering the Linux command line. This project was completely reworked from a static guide into a series of 13 interactive, self-correcting shell scripts.
+
+**Key Concepts Demonstrated:**
+- **Problem-Based Learning:** Exercises are framed as real-world scenarios, not just instructions to follow.
+- **Self-Discovery:** Hints are removed, forcing the use of `man` pages and `--help` to discover command options.
+- **Interactive Validation:** Scripts check the user's commands to ensure they achieve the specified goal.
+- **Covers 13 Core Topics:** Including filesystem navigation, permissions, I/O redirection, pipes, filters, `find`, `sed`, `awk`, and basic Bash scripting.
+
+[View Project →](2-linux/)
+
 
 ## Learning Roadmap
 
@@ -42,7 +37,7 @@ Here are the topics I plan to cover as I progress in my DevOps journey:
 
 - [x] **Microservices Architecture** - Service-to-service communication (completed 2025-11-11)
 - [x] **Polyglot Microservices** - Multi-language services (Go, Node.js, Python) (completed 2025-11-13)
-- [ ] **Linux Administration** - System administration and shell scripting
+- [x] **Linux Administration** - System administration and interactive shell scripting (reworked 2026-01-05)
 - [ ] **Programming & Scripting** - Python, Bash, and automation scripts
 - [ ] **Cloud Platforms** - AWS, Azure, or GCP
 - [ ] **Infrastructure as Code (IaC)** - Terraform, CloudFormation
@@ -57,16 +52,16 @@ Here are the topics I plan to cover as I progress in my DevOps journey:
 ```
 devops-progress/
 ├── 1-microservices_test/    # First project: Microservices demo
-├── 2-*/                      # Future projects will be added here
+├── 2-linux/                  # Second project: Interactive Linux tutorial
 └── README.md                 # This file
 ```
 
 ## Progress Tracking
 
 **Started:** November 11, 2025
-**Last Updated:** November 13, 2025
-**Projects Completed:** 1 (with polyglot enhancement)
-**Current Focus:** Polyglot Microservices Architecture
+**Last Updated:** January 5, 2026
+**Projects Completed:** 2
+**Current Focus:** Linux Command Line & Interactive Bash Scripting
 
 ---
 
